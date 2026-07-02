@@ -1,63 +1,286 @@
 @import 'tailwindcss';
 
-@keyframes orb-breathe {
+@theme {
+  --font-sans: 'Manrope', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Sora', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Design's exact violet — Tailwind's built-in violet-500 (#8b5cf6) is close
+   * but not the design's #6E56F8, so the three steps actually used are
+   * overridden here. purple-500 (#a855f7) and cyan-400 (#22d3ee) already
+   * match the design exactly with zero overrides needed. */
+  --color-violet-400: #9e8cfb;
+  --color-violet-500: #6e56f8;
+  --color-violet-600: #5a43e0;
+
+  /* Page-shell surfaces shared by every authenticated page. */
+  --color-canvas: #08090d;
+  --color-sidebar: #0b0c11;
+  --color-surface: #12131a;
+  --color-surface-2: #181a23;
+  --color-elevated: #14151d;
+
+  --color-ink: #f6f7fa;
+  --color-ink-dim: #9c9fb0;
+  --color-hairline: rgba(255, 255, 255, 0.07);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--color-canvas);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-up {
+  animation: fade-up 0.5s ease both;
+}
+
+@keyframes blob-drift-1 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(40px, -30px) scale(1.08);
+  }
+}
+@keyframes blob-drift-2 {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-50px, 30px) scale(1.05);
+  }
+}
+.animate-blob-drift-1 {
+  animation: blob-drift-1 22s ease-in-out infinite;
+}
+.animate-blob-drift-2 {
+  animation: blob-drift-2 26s ease-in-out infinite;
+}
+
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+.animate-hero-float {
+  animation: hero-float 7s ease-in-out infinite;
+}
+
+@keyframes chip-float-1 {
+  0%,
+  100% {
+    transform: translateY(0px) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(-2deg);
+  }
+}
+.animate-chip-float-1 {
+  animation: chip-float-1 5s ease-in-out infinite;
+}
+
+@keyframes chip-float-2 {
+  0%,
+  100% {
+    transform: translateY(0px) rotate(2deg);
+  }
+  50% {
+    transform: translateY(8px) rotate(2deg);
+  }
+}
+.animate-chip-float-2 {
+  animation: chip-float-2 6s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+.animate-skeleton-pulse {
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.animate-bar-grow {
+  animation: bar-grow 0.8s ease both;
+  transform-origin: left;
+}
+
+@keyframes dot-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(52, 211, 153, 0);
+  }
+}
+.animate-dot-pulse {
+  animation: dot-pulse 2s infinite;
+}
+
+@keyframes pulse-soft {
   0%,
   100% {
     transform: scale(1);
   }
   50% {
-    transform: scale(1.04);
+    transform: scale(1.045);
   }
 }
-
-@keyframes orb-listen-ring {
-  0% {
-    transform: scale(0.85);
-    opacity: 0.55;
-  }
+@keyframes pulse-strong {
+  0%,
   100% {
-    transform: scale(1.7);
-    opacity: 0;
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
   }
 }
-
-@keyframes orb-think-spin {
-  to {
-    transform: rotate(360deg);
-  }
+.animate-pulse-soft {
+  animation: pulse-soft 4s ease-in-out infinite;
+}
+.animate-pulse-strong {
+  animation: pulse-strong 1.6s ease-in-out infinite;
 }
 
-@keyframes orb-speak-bar {
+@keyframes wave-calm {
   0%,
   100% {
     transform: scaleY(0.35);
   }
   50% {
-    transform: scaleY(1);
+    transform: scaleY(0.55);
   }
 }
-
-.animate-orb-breathe {
-  animation: orb-breathe 3.5s ease-in-out infinite;
+@keyframes wave-active {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  25% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.45);
+  }
+  75% {
+    transform: scaleY(0.85);
+  }
+}
+.animate-wave-calm {
+  animation: wave-calm 1.8s ease-in-out infinite;
+}
+.animate-wave-active {
+  animation: wave-active 0.9s ease-in-out infinite;
 }
 
-.animate-orb-listen-ring {
-  animation: orb-listen-ring 1.8s ease-out infinite;
+@keyframes mic-ripple {
+  0% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+.animate-mic-ripple {
+  animation: mic-ripple 1.5s ease-out infinite;
 }
 
-.animate-orb-think-spin {
-  animation: orb-think-spin 2.2s linear infinite;
+@keyframes ring-glow-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.15;
+  }
+}
+.animate-ring-glow-pulse {
+  animation: ring-glow-pulse 2.6s ease-in-out infinite;
 }
 
-.animate-orb-speak-bar {
-  animation: orb-speak-bar 0.6s ease-in-out infinite;
+@keyframes confetti-pop {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) scale(0);
+    opacity: 0;
+  }
+}
+.animate-confetti-pop {
+  animation: confetti-pop 0.9s ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-orb-breathe,
-  .animate-orb-listen-ring,
-  .animate-orb-think-spin,
-  .animate-orb-speak-bar {
+  .animate-fade-up,
+  .animate-blob-drift-1,
+  .animate-blob-drift-2,
+  .animate-hero-float,
+  .animate-chip-float-1,
+  .animate-chip-float-2,
+  .animate-skeleton-pulse,
+  .animate-bar-grow,
+  .animate-dot-pulse,
+  .animate-pulse-soft,
+  .animate-pulse-strong,
+  .animate-wave-calm,
+  .animate-wave-active,
+  .animate-mic-ripple,
+  .animate-ring-glow-pulse,
+  .animate-confetti-pop {
     animation: none;
   }
 }

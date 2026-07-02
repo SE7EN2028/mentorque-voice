@@ -5,10 +5,12 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { DashboardPage } from './pages/DashboardPage'
 import { InterviewCompletePage } from './pages/InterviewCompletePage'
 import { InterviewSetupPage } from './pages/InterviewSetupPage'
+import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
-import { ReportPage } from './pages/ReportPage'
+import { ProfilePage } from './pages/ProfilePage'
 import { SessionDetailsPage } from './pages/SessionDetailsPage'
+import { SessionHistoryPage } from './pages/SessionHistoryPage'
 import { SignupPage } from './pages/SignupPage'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import { PublicOnlyRoute } from './routes/PublicOnlyRoute'
@@ -24,7 +26,8 @@ const InterviewRoomPage = lazy(() =>
 function RootRedirect() {
   const { status } = useAuth()
   if (status === 'loading') return <FullScreenSpinner />
-  return <Navigate to={status === 'authenticated' ? '/dashboard' : '/login'} replace />
+  if (status === 'authenticated') return <Navigate to="/dashboard" replace />
+  return <LandingPage />
 }
 
 function App() {
@@ -42,9 +45,11 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/interview/new" element={<InterviewSetupPage />} />
+            <Route path="/sessions" element={<SessionHistoryPage />} />
             <Route path="/sessions/:id" element={<SessionDetailsPage />} />
             <Route path="/sessions/:id/complete" element={<InterviewCompletePage />} />
-            <Route path="/sessions/:id/report" element={<ReportPage />} />
+            <Route path="/sessions/:id/report" element={<SessionDetailsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route
               path="/sessions/:id/room"
               element={

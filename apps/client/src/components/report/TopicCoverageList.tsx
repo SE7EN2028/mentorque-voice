@@ -22,7 +22,7 @@ function CoverageIcon({ entry }: { entry: FeedbackTopicCoverageEntry }) {
     )
   }
   return (
-    <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 text-slate-600" aria-hidden="true">
+    <svg viewBox="0 0 16 16" className="h-4 w-4 shrink-0 text-ink-dim/50" aria-hidden="true">
       <path fill="currentColor" d="M4 7.25h8a.75.75 0 0 1 0 1.5H4a.75.75 0 0 1 0-1.5Z" />
     </svg>
   )
@@ -34,18 +34,19 @@ function coverageStatusLabel(entry: FeedbackTopicCoverageEntry): string {
   return 'Not covered — optional'
 }
 
+/** Vertical fallback used when there are too many topics for the
+ * connected-dot stepper (see TopicProgressionStepper in SessionDetailsPage)
+ * to read cleanly as a single row. */
 export function TopicCoverageList({ entries }: { entries: FeedbackTopicCoverageEntry[] }) {
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
-      <h2 className="text-sm font-medium text-slate-400">Topic coverage</h2>
+    <div className="rounded-2xl border border-hairline bg-surface p-6">
+      <h2 className="font-display text-[15.5px] font-semibold text-ink">Topic Coverage</h2>
       <ul className="mt-4 flex flex-col gap-2.5">
         {entries.map((entry) => (
           <li key={entry.topic} className="flex items-start gap-2 text-sm">
             <CoverageIcon entry={entry} />
-            <span className={entry.covered ? 'text-slate-300' : 'text-slate-400'}>
-              {entry.topic}
-            </span>
-            <span className="ml-auto shrink-0 text-xs text-slate-500">
+            <span className={entry.covered ? 'text-[#d5d7e0]' : 'text-ink-dim'}>{entry.topic}</span>
+            <span className="ml-auto shrink-0 text-xs text-ink-dim/70">
               {coverageStatusLabel(entry)}
             </span>
           </li>

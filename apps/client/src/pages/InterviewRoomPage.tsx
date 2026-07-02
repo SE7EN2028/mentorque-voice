@@ -13,6 +13,8 @@ import { VOICE_CONTROL_TOPIC, VOICE_UPDATES_TOPIC } from '@mentorque/shared'
 import { ApiError } from '../api/client'
 import { sessionsApi } from '../api/sessions'
 import { voiceApi } from '../api/voice'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { DriftingBlobs } from '../components/layout/PageGlow'
 import { FormBanner } from '../components/forms/FormBanner'
 import { FullScreenSpinner } from '../components/FullScreenSpinner'
 import type { ConnectionStatus } from '../components/voice/ConnectionStatusBadge'
@@ -20,6 +22,15 @@ import { BottomControls } from '../components/voice/BottomControls'
 import { TopBar } from '../components/voice/TopBar'
 import { TranscriptTimeline, type TranscriptEntry } from '../components/voice/TranscriptTimeline'
 import { VoiceOrb, type VoiceOrbState } from '../components/voice/VoiceOrb'
+
+// Short-form phase text for BottomControls' status pill — the long-form
+// version ("AI is thinking", etc.) lives inside VoiceOrb itself.
+const PHASE_LABEL: Record<VoiceOrbState, string> = {
+  idle: 'Waiting',
+  listening: 'Listening',
+  thinking: 'Thinking',
+  speaking: 'AI Speaking',
+}
 
 function mapConnectionState(state: ConnectionState): ConnectionStatus {
   switch (state) {
@@ -75,7 +86,7 @@ export function InterviewRoomPage() {
 
   if (joinState.status === 'error') {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6">
+      <main className="flex min-h-screen items-center justify-center bg-canvas px-6">
         <FormBanner variant="error" message={joinState.message} />
       </main>
     )
@@ -112,6 +123,7 @@ function InterviewRoomContent({
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [micError, setMicError] = useState<string | null>(null)
   const [isEnding, setIsEnding] = useState(false)
+  const [dialog, setDialog] = useState<'end' | 'leave' | null>(null)
 
   const handleUpdate = useCallback(
     (raw: Uint8Array) => {
@@ -161,35 +173,115 @@ function InterviewRoomContent({
   }, [localParticipant])
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950 text-slate-100">
+    <div className="relative flex h-screen flex-col overflow-hidden bg-canvas font-sans text-ink">
+      <DriftingBlobs variant="violet-cyan" />
+
       <TopBar
         interviewType={interviewType}
         startedAt={startedAt}
         connectionStatus={mapConnectionState(connectionState)}
+        onLeaveInterview={() => setDialog('leave')}
       />
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex flex-1 flex-col items-center justify-center gap-10 px-6">
+      <div className="relative z-2 flex min-h-0 flex-1">
+        <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-5.5 p-5">
           <VoiceOrb state={orbState} />
 
           {micError && <FormBanner variant="error" message={micError} />}
-
-          <BottomControls
-            isMuted={!isMicrophoneEnabled}
-            onToggleMute={handleToggleMute}
-            onEndInterview={handleEndInterview}
-            micAvailable={!micError}
-            isEnding={isEnding}
-          />
         </div>
 
-        <aside className="hidden w-96 flex-col overflow-y-auto border-l border-slate-800 p-6 lg:flex">
-          <h2 className="mb-4 text-sm font-semibold tracking-wide text-slate-400 uppercase">
-            Transcript
-          </h2>
-          <TranscriptTimeline entries={transcript} />
+        <aside className="hidden w-95 shrink-0 flex-col border-l border-hairline bg-white/[0.012] lg:flex">
+          <div className="flex shrink-0 items-center gap-2.25 border-b border-hairline px-5.5 py-4.75">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#9C9FB0"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="9" y1="14" x2="15" y2="14" />
+              <line x1="9" y1="17.5" x2="15" y2="17.5" />
+            </svg>
+            <span className="font-display text-[14.5px] font-semibold text-ink">
+              Live Transcript
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-5.5">
+            <TranscriptTimeline entries={transcript} />
+          </div>
         </aside>
       </div>
+
+      <BottomControls
+        isMuted={!isMicrophoneEnabled}
+        onToggleMute={handleToggleMute}
+        onEndInterview={() => setDialog('end')}
+        micAvailable={!micError}
+        isEnding={isEnding}
+        phaseLabel={PHASE_LABEL[orbState]}
+      />
+
+      {dialog === 'end' && (
+        <ConfirmDialog
+          icon={
+            <svg
+              width="21"
+              height="21"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#9E8CFB"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8-5.1-4.7 6.9-.8z" />
+            </svg>
+          }
+          iconBg="bg-violet-500/14"
+          title="End this interview?"
+          message="You'll get your feedback and score right away. This can't be undone."
+          confirmLabel="End Interview"
+          confirmVariant="brand"
+          onCancel={() => setDialog(null)}
+          onConfirm={() => {
+            setDialog(null)
+            void handleEndInterview()
+          }}
+        />
+      )}
+
+      {dialog === 'leave' && (
+        <ConfirmDialog
+          icon={
+            <svg
+              width="21"
+              height="21"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#FB7185"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <line x1="12" y1="8" x2="12" y2="13" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          }
+          iconBg="bg-rose-400/14"
+          title="Leave without finishing?"
+          message="Your progress won't be scored and this session will be discarded."
+          confirmLabel="Leave Interview"
+          confirmVariant="danger"
+          onCancel={() => setDialog(null)}
+          onConfirm={() => navigate('/dashboard', { replace: true })}
+        />
+      )}
     </div>
   )
 }

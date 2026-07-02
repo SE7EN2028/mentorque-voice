@@ -14,3 +14,11 @@ export const SCORE_BAND_STYLES: Record<ScoreBand, { text: string; fill: string }
   warning: { text: 'text-amber-300', fill: 'bg-amber-400' },
   critical: { text: 'text-red-300', fill: 'bg-red-400' },
 }
+
+/** Short verdict copy shown next to a score-band badge (e.g. the score-reveal
+ * screen after an interview finishes). */
+export const SCORE_BAND_LABELS: Record<ScoreBand, string> = {
+  good: 'Strong Performance',
+  warning: 'Solid Effort',
+  critical: 'Needs Practice',
+}
