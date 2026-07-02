@@ -5,6 +5,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { InterviewSetupPage } from './pages/InterviewSetupPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { SessionDetailsPage } from './pages/SessionDetailsPage'
 import { SignupPage } from './pages/SignupPage'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import { PublicOnlyRoute } from './routes/PublicOnlyRoute'
@@ -30,6 +31,7 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/interview/new" element={<InterviewSetupPage />} />
+            <Route path="/sessions/:id" element={<SessionDetailsPage />} />
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />

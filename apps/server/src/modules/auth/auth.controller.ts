@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express'
-import { AppError } from '../../lib/errors.js'
 import { COOKIE_NAME, cookieOptions } from '../../lib/cookies.js'
+import { getUserId } from '../../middleware/auth.js'
 import { authService } from './auth.service.js'
 
 // Controllers stay thin: parse/shape only. Express 5 forwards rejected
@@ -24,10 +24,7 @@ export const authController = {
   },
 
   async me(req: Request, res: Response) {
-    if (!req.userId) {
-      throw new AppError(401, 'Not authenticated')
-    }
-    const user = await authService.getById(req.userId)
+    const user = await authService.getById(getUserId(req))
     res.status(200).json({ user })
   },
 }

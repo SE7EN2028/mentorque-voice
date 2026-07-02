@@ -33,5 +33,49 @@ model User {
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
+  sessions InterviewSession[]
+
   @@map("users")
+}
+
+// Keep these values in sync with InterviewType/SessionStatus in
+// packages/shared/src/sessions — same manual-sync caveat as ExperienceLevel.
+enum InterviewType {
+  BEHAVIORAL
+  TECHNICAL
+  SYSTEM_DESIGN
+  HR_CULTURE_FIT
+}
+
+enum SessionStatus {
+  CREATED
+  ACTIVE
+  CLOSING
+  COMPLETED
+  ABANDONED
+}
+
+model InterviewSession {
+  id            String        @id @default(cuid())
+  userId        String        @map("user_id")
+  interviewType InterviewType @map("interview_type")
+  status        SessionStatus @default(CREATED)
+
+  resumeContext         String? @map("resume_context")
+  jobDescriptionContext String? @map("job_description_context")
+
+  // Reserved for later phases (conversation engine state, provider/model
+  // bookkeeping). Untouched by Phase 2 — no code reads or writes these yet.
+  engineState Json? @map("engine_state") @db.JsonB
+  metadata    Json? @db.JsonB
+
+  startedAt DateTime? @map("started_at")
+  endedAt   DateTime? @map("ended_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("interview_sessions")
 }

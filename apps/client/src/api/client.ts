@@ -10,15 +10,18 @@ export class ApiError extends Error {
 
 const API_URL = import.meta.env.VITE_API_URL
 
-/** Thin fetch wrapper: always sends the auth cookie, always sends/expects
- * JSON, and normalizes non-2xx responses into a typed ApiError so callers
- * can show the server's actual message instead of a generic failure. */
+/** Thin fetch wrapper: always sends the auth cookie, normalizes non-2xx
+ * responses into a typed ApiError, and JSON-encodes by default — unless the
+ * body is FormData (file upload), in which case the browser sets its own
+ * multipart Content-Type with the correct boundary. */
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const isFormData = options.body instanceof FormData
+
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     credentials: 'include',
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...options.headers,
     },
   })
