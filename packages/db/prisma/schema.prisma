@@ -68,7 +68,14 @@ model InterviewSession {
   // nested ConversationMemory) as defined in packages/interview-engine —
   // opaque jsonb here, typed and Zod-validated on the way in/out there.
   engineState Json? @map("engine_state") @db.JsonB
-  metadata    Json? @db.JsonB
+  // metadata carries voice-session bookkeeping (sttProvider, ttsProvider) once
+  // a voice interview starts — reserved since Phase 2, first used in Phase 5.
+  metadata Json? @db.JsonB
+
+  // Set once a voice session starts (apps/agent-worker). Deliberately
+  // deferred until this phase — Phase 2 explicitly left LiveKit out of
+  // scope, so this column didn't exist until it was actually needed.
+  livekitRoomName String? @map("livekit_room_name")
 
   startedAt DateTime? @map("started_at")
   endedAt   DateTime? @map("ended_at")

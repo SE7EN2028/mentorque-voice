@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { sessionsApi } from '../api/sessions'
 import { FormBanner } from '../components/forms/FormBanner'
@@ -96,6 +96,14 @@ export function SessionDetailsPage() {
         )}
 
         <div className="mt-8 flex gap-3">
+          {(session.status === 'CREATED' || session.status === 'ACTIVE') && (
+            <Link
+              to={`/sessions/${session.id}/room`}
+              className="rounded-md bg-indigo-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-400"
+            >
+              {session.status === 'ACTIVE' ? 'Rejoin interview' : 'Start voice interview'}
+            </Link>
+          )}
           {session.status === 'CREATED' && (
             <button
               onClick={handleAbandon}

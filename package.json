@@ -10,14 +10,17 @@
     "packages/*"
   ],
   "scripts": {
-    "setup": "node scripts/setup-env.mjs && npm run build -w packages/shared && npm run build -w packages/db && npm run build -w packages/interview-engine",
-    "dev": "concurrently -n shared,db,engine,server,client -c yellow,magenta,cyan,green,blue \"npm:dev:shared\" \"npm:dev:db\" \"npm:dev:engine\" \"npm:dev:server\" \"npm:dev:client\"",
+    "setup": "node scripts/setup-env.mjs && npm run build -w packages/shared && npm run build -w packages/db && npm run build -w packages/interview-engine && npm run build -w packages/interview-session",
+    "setup:voice": "npm run build -w apps/agent-worker",
+    "dev": "concurrently -n shared,db,engine,session,server,client -c yellow,magenta,cyan,white,green,blue \"npm:dev:shared\" \"npm:dev:db\" \"npm:dev:engine\" \"npm:dev:session\" \"npm:dev:server\" \"npm:dev:client\"",
     "dev:shared": "npm run dev -w packages/shared",
     "dev:db": "npm run dev -w packages/db",
     "dev:engine": "npm run dev -w packages/interview-engine",
+    "dev:session": "npm run dev -w packages/interview-session",
     "dev:server": "npm run dev -w apps/server",
     "dev:client": "npm run dev -w apps/client",
-    "build": "npm run build -w packages/shared && npm run build -w packages/db && npm run build -w packages/interview-engine && npm run build -w apps/server && npm run build -w apps/client",
+    "dev:voice": "npm run dev -w apps/agent-worker",
+    "build": "npm run build -w packages/shared && npm run build -w packages/db && npm run build -w packages/interview-engine && npm run build -w packages/interview-session && npm run build -w apps/server && npm run build -w apps/client && npm run build -w apps/agent-worker",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -35,6 +38,7 @@
     "globals": "^15.14.0",
     "prettier": "^3.4.2",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.21.0"
+    "typescript-eslint": "^8.21.0",
+    "zod": "^3.24.1"
   }
 }

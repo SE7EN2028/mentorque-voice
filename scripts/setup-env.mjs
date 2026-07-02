@@ -5,7 +5,12 @@ import { fileURLToPath } from 'node:url'
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 
-const envFiles = ['apps/client/.env', 'apps/server/.env', 'packages/db/.env']
+const envFiles = [
+  'apps/client/.env',
+  'apps/server/.env',
+  'apps/agent-worker/.env',
+  'packages/db/.env',
+]
 
 function parseKeys(content) {
   const keys = new Set()

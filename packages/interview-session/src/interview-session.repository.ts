@@ -24,9 +24,21 @@ interface UpdateSessionStateInput {
   endedAt?: Date
 }
 
-/** All Prisma access for the interviews module lives here. The engine
- * itself never imports this — it works purely on plain objects passed in. */
-export const interviewsRepository = {
+/** All Prisma access for running an interview session lives here — neither
+ * the conversation engine nor any transport layer (REST, voice) touches
+ * `prisma` directly. */
+export const interviewSessionRepository = {
+  findSessionByIdAndUser(id: string, userId: string) {
+    return prisma.interviewSession.findFirst({ where: { id, userId } })
+  },
+
+  findCandidateProfile(userId: string) {
+    return prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, jobRole: true, experienceLevel: true },
+    })
+  },
+
   appendTranscriptTurn(data: AppendTurnInput) {
     return prisma.transcriptTurn.create({
       data: {
@@ -63,6 +75,24 @@ export const interviewsRepository = {
         status: data.status,
         ...(data.startedAt && { startedAt: data.startedAt }),
         ...(data.endedAt && { endedAt: data.endedAt }),
+      },
+    })
+  },
+
+  /** Voice-only bookkeeping — recorded once when a voice session joins.
+   * Never read by the engine; purely observability/debugging metadata. */
+  recordVoiceMetadata(
+    sessionId: string,
+    data: { livekitRoomName: string; sttProvider: string; ttsProvider: string },
+  ) {
+    return prisma.interviewSession.update({
+      where: { id: sessionId },
+      data: {
+        livekitRoomName: data.livekitRoomName,
+        metadata: {
+          sttProvider: data.sttProvider,
+          ttsProvider: data.ttsProvider,
+        } as unknown as Prisma.InputJsonValue,
       },
     })
   },

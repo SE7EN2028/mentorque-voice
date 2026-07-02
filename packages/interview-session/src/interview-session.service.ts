@@ -7,12 +7,10 @@ import {
   processTurn,
   type ProcessTurnResult,
 } from '@mentorque/interview-engine'
-import { AppError } from '../../lib/errors.js'
-import { logger } from '../../lib/logger.js'
-import { authRepository } from '../auth/auth.repository.js'
-import { sessionsRepository } from '../sessions/sessions.repository.js'
-import { interviewsRepository } from './interviews.repository.js'
-import { toEngineTranscriptTurn } from './interviews.mapper.js'
+import { InterviewSessionError } from './errors.js'
+import { logger } from './logger.js'
+import { interviewSessionRepository } from './interview-session.repository.js'
+import { toEngineTranscriptTurn } from './interview-session.mapper.js'
 
 const RECENT_TRANSCRIPT_TURN_LIMIT = 6
 
@@ -34,12 +32,12 @@ async function getOwnedActiveSession(
   userId: string,
   expectedStatus: 'CREATED' | 'ACTIVE',
 ) {
-  const session = await sessionsRepository.findByIdAndUser(sessionId, userId)
+  const session = await interviewSessionRepository.findSessionByIdAndUser(sessionId, userId)
   if (!session) {
-    throw new AppError(404, 'Session not found')
+    throw new InterviewSessionError(404, 'Session not found')
   }
   if (session.status !== expectedStatus) {
-    throw new AppError(
+    throw new InterviewSessionError(
       409,
       `Interview is not in a state that allows this action (currently ${session.status})`,
     )
@@ -47,23 +45,25 @@ async function getOwnedActiveSession(
   return session
 }
 
-export const interviewsService = {
+/**
+ * The single place an interview session's lifecycle (start/message/end)
+ * actually runs — called in-process by both the Express REST controllers
+ * (apps/server) and the LiveKit voice agent (apps/agent-worker) via the
+ * exact same functions, so text-mode and voice-mode can never drift apart.
+ */
+export const interviewSessionService = {
   async start(sessionId: string, userId: string): Promise<InterviewTurnResponseDto> {
     const session = await getOwnedActiveSession(sessionId, userId, 'CREATED')
 
-    const user = await authRepository.findById(userId)
-    if (!user) {
-      throw new AppError(401, 'User not found')
+    const candidateProfile = await interviewSessionRepository.findCandidateProfile(userId)
+    if (!candidateProfile) {
+      throw new InterviewSessionError(401, 'User not found')
     }
 
     const blueprint = getBlueprint(session.interviewType)
     const initialState = createInitialEngineState({
       interviewType: session.interviewType,
-      candidateProfile: {
-        name: user.name,
-        jobRole: user.jobRole,
-        experienceLevel: user.experienceLevel,
-      },
+      candidateProfile,
       resumeContext: session.resumeContext,
       jobDescriptionContext: session.jobDescriptionContext,
       maxDurationMs: blueprint.expectedDurationMinutes * 60_000,
@@ -83,7 +83,7 @@ export const interviewsService = {
     const startedAt = new Date()
     const persistedState = { ...result.newState, startedAt: startedAt.toISOString() }
 
-    await interviewsRepository.appendTranscriptTurn({
+    await interviewSessionRepository.appendTranscriptTurn({
       sessionId,
       sequence: 1,
       role: 'INTERVIEWER',
@@ -91,7 +91,7 @@ export const interviewsService = {
       actionTaken: result.action,
       difficultyAtTurn: result.difficulty,
     })
-    await interviewsRepository.updateSessionState(sessionId, {
+    await interviewSessionRepository.updateSessionState(sessionId, {
       engineState: persistedState,
       status: 'ACTIVE',
       startedAt,
@@ -110,33 +110,33 @@ export const interviewsService = {
     const session = await getOwnedActiveSession(sessionId, userId, 'ACTIVE')
 
     if (!session.engineState) {
-      throw new AppError(500, 'Session is missing engine state')
+      throw new InterviewSessionError(500, 'Session is missing engine state')
     }
     const state = engineStateSchema.parse(session.engineState)
     const blueprint = getBlueprint(session.interviewType)
     const elapsedMs = state.startedAt ? Date.now() - new Date(state.startedAt).getTime() : 0
 
-    const recentRows = await interviewsRepository.getRecentTurns(
+    const recentRows = await interviewSessionRepository.getRecentTurns(
       sessionId,
       RECENT_TRANSCRIPT_TURN_LIMIT,
     )
     const recentTranscript = recentRows.map(toEngineTranscriptTurn)
 
-    const nextSequence = (await interviewsRepository.countTurns(sessionId)) + 1
+    const nextSequence = (await interviewSessionRepository.countTurns(sessionId)) + 1
 
     const result = await processTurn(
       { blueprint, state, recentTranscript, candidateMessage, elapsedMs },
       getLLMProvider(),
     )
 
-    await interviewsRepository.appendTranscriptTurn({
+    await interviewSessionRepository.appendTranscriptTurn({
       sessionId,
       sequence: nextSequence,
       role: 'CANDIDATE',
       content: candidateMessage,
       evaluation: result.evaluation ?? undefined,
     })
-    await interviewsRepository.appendTranscriptTurn({
+    await interviewSessionRepository.appendTranscriptTurn({
       sessionId,
       sequence: nextSequence + 1,
       role: 'INTERVIEWER',
@@ -145,7 +145,7 @@ export const interviewsService = {
       difficultyAtTurn: result.difficulty,
     })
 
-    await interviewsRepository.updateSessionState(sessionId, {
+    await interviewSessionRepository.updateSessionState(sessionId, {
       engineState: { ...result.newState, elapsedMs },
       status: result.isSessionOver ? 'CLOSING' : 'ACTIVE',
       endedAt: result.isSessionOver ? new Date() : undefined,
@@ -164,18 +164,18 @@ export const interviewsService = {
     const session = await getOwnedActiveSession(sessionId, userId, 'ACTIVE')
 
     if (!session.engineState) {
-      throw new AppError(500, 'Session is missing engine state')
+      throw new InterviewSessionError(500, 'Session is missing engine state')
     }
     const state = engineStateSchema.parse(session.engineState)
     const blueprint = getBlueprint(session.interviewType)
     const elapsedMs = state.startedAt ? Date.now() - new Date(state.startedAt).getTime() : 0
 
-    const recentRows = await interviewsRepository.getRecentTurns(
+    const recentRows = await interviewSessionRepository.getRecentTurns(
       sessionId,
       RECENT_TRANSCRIPT_TURN_LIMIT,
     )
     const recentTranscript = recentRows.map(toEngineTranscriptTurn)
-    const nextSequence = (await interviewsRepository.countTurns(sessionId)) + 1
+    const nextSequence = (await interviewSessionRepository.countTurns(sessionId)) + 1
 
     const result = await processTurn(
       {
@@ -189,7 +189,7 @@ export const interviewsService = {
       getLLMProvider(),
     )
 
-    await interviewsRepository.appendTranscriptTurn({
+    await interviewSessionRepository.appendTranscriptTurn({
       sessionId,
       sequence: nextSequence,
       role: 'INTERVIEWER',
@@ -197,7 +197,7 @@ export const interviewsService = {
       actionTaken: result.action,
       difficultyAtTurn: result.difficulty,
     })
-    await interviewsRepository.updateSessionState(sessionId, {
+    await interviewSessionRepository.updateSessionState(sessionId, {
       engineState: { ...result.newState, elapsedMs },
       status: 'CLOSING',
       endedAt: new Date(),
@@ -206,5 +206,23 @@ export const interviewsService = {
     logger.info('interview ended by candidate', { sessionId })
 
     return toTurnResponseDto(result)
+  },
+
+  /** Used by the voice worker on (re)join to decide whether to run the
+   * opening turn or just resume listening — a candidate reconnecting mid-
+   * interview must not hear the introduction a second time. */
+  async getStatus(sessionId: string, userId: string) {
+    const session = await interviewSessionRepository.findSessionByIdAndUser(sessionId, userId)
+    if (!session) {
+      throw new InterviewSessionError(404, 'Session not found')
+    }
+    return session.status
+  },
+
+  async recordVoiceMetadata(
+    sessionId: string,
+    data: { livekitRoomName: string; sttProvider: string; ttsProvider: string },
+  ): Promise<void> {
+    await interviewSessionRepository.recordVoiceMetadata(sessionId, data)
   },
 }

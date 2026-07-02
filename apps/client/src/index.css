@@ -1,1 +1,63 @@
 @import 'tailwindcss';
+
+@keyframes orb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes orb-listen-ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+@keyframes orb-think-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orb-speak-bar {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.animate-orb-breathe {
+  animation: orb-breathe 3.5s ease-in-out infinite;
+}
+
+.animate-orb-listen-ring {
+  animation: orb-listen-ring 1.8s ease-out infinite;
+}
+
+.animate-orb-think-spin {
+  animation: orb-think-spin 2.2s linear infinite;
+}
+
+.animate-orb-speak-bar {
+  animation: orb-speak-bar 0.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-orb-breathe,
+  .animate-orb-listen-ring,
+  .animate-orb-think-spin,
+  .animate-orb-speak-bar {
+    animation: none;
+  }
+}

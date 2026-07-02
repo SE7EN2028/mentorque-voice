@@ -1,0 +1,28 @@
+{
+  "name": "@mentorque/agent-worker",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts dev",
+    "build": "tsc",
+    "start": "node dist/index.js start",
+    "lint": "eslint .",
+    "test:voice-agent": "tsx scripts/test-voice-agent.ts"
+  },
+  "dependencies": {
+    "@livekit/agents": "^1.5.0",
+    "@livekit/agents-plugin-cartesia": "^1.5.0",
+    "@livekit/agents-plugin-deepgram": "^1.5.0",
+    "@livekit/agents-plugin-google": "^1.5.0",
+    "@livekit/rtc-node": "^0.13.9",
+    "@mentorque/interview-session": "*",
+    "@mentorque/shared": "*",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

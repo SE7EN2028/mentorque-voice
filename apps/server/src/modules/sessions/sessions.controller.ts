@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import { getUserId } from '../../middleware/auth.js'
 import { getRequiredParam } from '../../lib/request.js'
 import { sessionsService } from './sessions.service.js'
+import { voiceTokenService } from './voice-token.service.js'
 
 export const sessionsController = {
   async create(req: Request, res: Response) {
@@ -31,5 +32,13 @@ export const sessionsController = {
   async remove(req: Request, res: Response) {
     await sessionsService.remove(getRequiredParam(req, 'id'), getUserId(req))
     res.status(204).send()
+  },
+
+  async issueVoiceToken(req: Request, res: Response) {
+    const tokenDto = await voiceTokenService.createToken(
+      getRequiredParam(req, 'id'),
+      getUserId(req),
+    )
+    res.status(200).json(tokenDto)
   },
 }

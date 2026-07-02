@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@mentorque/db": "*",
-    "@mentorque/interview-engine": "*",
+    "@mentorque/interview-session": "*",
     "@mentorque/shared": "*",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
@@ -19,7 +19,9 @@
     "dotenv": "^16.4.7",
     "express": "^5.0.1",
     "helmet": "^8.0.0",
+    "@livekit/protocol": "^1.36.0",
     "jsonwebtoken": "^9.0.2",
+    "livekit-server-sdk": "^2.16.0",
     "morgan": "^1.10.0",
     "multer": "^2.0.0",
     "unpdf": "^1.6.2",
