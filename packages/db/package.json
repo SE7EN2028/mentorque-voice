@@ -1,0 +1,22 @@
+{
+  "name": "@mentorque/db",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/client.js",
+  "types": "./dist/client.d.ts",
+  "scripts": {
+    "generate": "prisma generate",
+    "push": "prisma db push",
+    "studio": "prisma studio",
+    "build": "npm run generate && tsc",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@prisma/client": "^6.3.1"
+  },
+  "devDependencies": {
+    "prisma": "^6.3.1",
+    "typescript": "^5.7.3"
+  }
+}

@@ -1,0 +1,17 @@
+// This schema intentionally has no models yet.
+// Phase 1 (auth) introduces the first model: User.
+//
+// Two connection strings are configured on purpose: Neon's pooled connection
+// (routed through PgBouncer) doesn't reliably support the advisory locks
+// Prisma Migrate needs, so migrations run through the direct, unpooled URL
+// while the app itself queries through the pooled one.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
