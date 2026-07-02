@@ -16,6 +16,9 @@
     "dev": "tsc -w",
     "lint": "eslint ."
   },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
   "devDependencies": {
     "typescript": "^5.7.3"
   }

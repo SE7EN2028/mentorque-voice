@@ -3,13 +3,15 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "main": "./dist/client.js",
-  "types": "./dist/client.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
     "push": "prisma db push",
     "studio": "prisma studio",
     "build": "npm run generate && tsc",
+    "dev": "npm run generate && tsc -w",
     "lint": "eslint ."
   },
   "dependencies": {

@@ -10,16 +10,18 @@
     "packages/*"
   ],
   "scripts": {
-    "setup": "node scripts/setup-env.mjs && npm run build -w packages/shared && npm run db:generate",
-    "dev": "concurrently -n shared,server,client -c yellow,green,blue \"npm:dev:shared\" \"npm:dev:server\" \"npm:dev:client\"",
+    "setup": "node scripts/setup-env.mjs && npm run build -w packages/shared && npm run build -w packages/db",
+    "dev": "concurrently -n shared,db,server,client -c yellow,magenta,green,blue \"npm:dev:shared\" \"npm:dev:db\" \"npm:dev:server\" \"npm:dev:client\"",
     "dev:shared": "npm run dev -w packages/shared",
+    "dev:db": "npm run dev -w packages/db",
     "dev:server": "npm run dev -w apps/server",
     "dev:client": "npm run dev -w apps/client",
-    "build": "npm run build -w packages/shared && npm run build -w apps/server && npm run build -w apps/client",
+    "build": "npm run build -w packages/shared && npm run build -w packages/db && npm run build -w apps/server && npm run build -w apps/client",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "npm run generate -w packages/db",
+    "db:migrate": "npm run migrate -w packages/db",
     "db:push": "npm run push -w packages/db"
   },
   "devDependencies": {

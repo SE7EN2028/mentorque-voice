@@ -1,7 +1,10 @@
-import express, { type NextFunction, type Request, type Response } from 'express'
+import express, { type Request, type Response } from 'express'
+import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
+import { errorHandler } from './middleware/errorHandler.js'
+import { authRouter } from './modules/auth/auth.routes.js'
 import { healthRouter } from './routes/health.js'
 
 /**
@@ -20,24 +23,21 @@ export function createApp() {
     }),
   )
   app.use(express.json())
+  app.use(cookieParser())
 
   if (process.env.NODE_ENV !== 'production') {
     app.use(morgan('dev'))
   }
 
   app.use('/api/health', healthRouter)
+  app.use('/api/auth', authRouter)
 
   // 404 for anything that didn't match a route above
   app.use((_req: Request, res: Response) => {
     res.status(404).json({ error: 'Not found' })
   })
 
-  // Centralized error handler — routes added in later phases throw/next(err)
-  // into this instead of handling errors ad hoc.
-  app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-    console.error(err)
-    res.status(500).json({ error: 'Internal server error' })
-  })
+  app.use(errorHandler)
 
   return app
 }
