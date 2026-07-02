@@ -1,5 +1,5 @@
 {
-  "name": "@mentorque/interview-session",
+  "name": "@mentorque/feedback-engine",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -14,15 +14,16 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc -w",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "tsx scripts/test-feedback-engine.ts"
   },
   "dependencies": {
-    "@mentorque/db": "*",
-    "@mentorque/feedback-engine": "*",
     "@mentorque/interview-engine": "*",
-    "@mentorque/shared": "*"
+    "@mentorque/shared": "*",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
+    "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }
 }

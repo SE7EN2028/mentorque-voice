@@ -70,7 +70,7 @@ model InterviewSession {
   engineState Json? @map("engine_state") @db.JsonB
   // metadata carries voice-session bookkeeping (sttProvider, ttsProvider) once
   // a voice interview starts — reserved since Phase 2, first used in Phase 5.
-  metadata Json? @db.JsonB
+  metadata    Json? @db.JsonB
 
   // Set once a voice session starts (apps/agent-worker). Deliberately
   // deferred until this phase — Phase 2 explicitly left LiveKit out of
@@ -84,6 +84,7 @@ model InterviewSession {
 
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   transcriptTurns TranscriptTurn[]
+  feedbackReport  FeedbackReport?
 
   @@index([userId])
   @@map("interview_sessions")
@@ -105,11 +106,11 @@ enum TurnAction {
 }
 
 model TranscriptTurn {
-  id       String   @id @default(cuid())
-  sessionId String  @map("session_id")
-  sequence Int
-  role     TurnRole
-  content  String
+  id        String   @id @default(cuid())
+  sessionId String   @map("session_id")
+  sequence  Int
+  role      TurnRole
+  content   String
 
   // Only set on CANDIDATE turns — the 8-dimension AnswerEvaluation from
   // packages/interview-engine, nullable per dimension by interview type.
@@ -125,4 +126,34 @@ model TranscriptTurn {
 
   @@index([sessionId, sequence])
   @@map("transcript_turns")
+}
+
+model FeedbackReport {
+  id        String @id @default(cuid())
+  sessionId String @unique @map("session_id")
+
+  // All four below are fully deterministic (computed in code from
+  // evaluationHistory/blueprint/transcript, never asked of the LLM) — see
+  // packages/feedback-engine/src/deterministic-metrics.ts.
+  overallScore          Int   @map("overall_score")
+  dimensionScores       Json  @map("dimension_scores") @db.JsonB
+  topicCoverage         Json  @map("topic_coverage") @db.JsonB
+  difficultyReached     Int   @map("difficulty_reached")
+  difficultyProgression Int[] @map("difficulty_progression")
+  durationMs            Int   @map("duration_ms")
+
+  // Everything below is the LLM's qualitative writing, grounded in the
+  // deterministic numbers above via the report prompt.
+  summary                  String
+  topStrengths             String[] @map("top_strengths")
+  areasForImprovement      String[] @map("areas_for_improvement")
+  missedOpportunities      String[] @map("missed_opportunities")
+  recommendedNextSteps     String[] @map("recommended_next_steps")
+  actionablePracticeAdvice String[] @map("actionable_practice_advice")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("feedback_reports")
 }

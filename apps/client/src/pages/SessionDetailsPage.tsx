@@ -104,6 +104,14 @@ export function SessionDetailsPage() {
               {session.status === 'ACTIVE' ? 'Rejoin interview' : 'Start voice interview'}
             </Link>
           )}
+          {session.status === 'COMPLETED' && (
+            <Link
+              to={`/sessions/${session.id}/report`}
+              className="rounded-md bg-indigo-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-400"
+            >
+              View report
+            </Link>
+          )}
           {session.status === 'CREATED' && (
             <button
               onClick={handleAbandon}

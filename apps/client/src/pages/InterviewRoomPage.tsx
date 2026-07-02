@@ -88,7 +88,7 @@ export function InterviewRoomPage() {
       connect
       audio
       video={false}
-      onDisconnected={() => navigate(`/sessions/${id}`, { replace: true })}
+      onDisconnected={() => navigate(`/sessions/${id}/complete`, { replace: true })}
     >
       <RoomAudioRenderer />
       <InterviewRoomContent interviewType={joinState.interviewType} sessionId={id ?? ''} />
@@ -135,7 +135,7 @@ function InterviewRoomContent({
         // leaving the room — the LiveKitRoom's onDisconnected handler
         // (in the parent) also covers the case where the agent hangs up
         // first.
-        setTimeout(() => navigate(`/sessions/${sessionId}`, { replace: true }), 4000)
+        setTimeout(() => navigate(`/sessions/${sessionId}/complete`, { replace: true }), 4000)
       }
     },
     [navigate, sessionId],

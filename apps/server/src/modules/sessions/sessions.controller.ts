@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express'
+import { interviewSessionService } from '@mentorque/interview-session'
 import { getUserId } from '../../middleware/auth.js'
 import { getRequiredParam } from '../../lib/request.js'
 import { sessionsService } from './sessions.service.js'
@@ -40,5 +41,13 @@ export const sessionsController = {
       getUserId(req),
     )
     res.status(200).json(tokenDto)
+  },
+
+  async getReport(req: Request, res: Response) {
+    const report = await interviewSessionService.getReport(
+      getRequiredParam(req, 'id'),
+      getUserId(req),
+    )
+    res.status(200).json(report)
   },
 }

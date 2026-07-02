@@ -4,7 +4,7 @@ import {
   type SessionStatus as DbSessionStatus,
   type TurnRole,
 } from '@mentorque/db'
-import type { TurnAction } from '@mentorque/shared'
+import type { FeedbackReportDto, TurnAction } from '@mentorque/shared'
 import type { AnswerEvaluation, EngineState } from '@mentorque/interview-engine'
 
 interface AppendTurnInput {
@@ -67,6 +67,16 @@ export const interviewSessionRepository = {
     return prisma.transcriptTurn.count({ where: { sessionId } })
   },
 
+  /** The full transcript, in order — unlike getRecentTurns, this isn't
+   * bounded, because the Feedback Engine (unlike the per-turn prompt) needs
+   * every turn to compute accurate coverage/difficulty/follow-up metrics. */
+  getAllTurns(sessionId: string) {
+    return prisma.transcriptTurn.findMany({
+      where: { sessionId },
+      orderBy: { sequence: 'asc' },
+    })
+  },
+
   updateSessionState(sessionId: string, data: UpdateSessionStateInput) {
     return prisma.interviewSession.update({
       where: { id: sessionId },
@@ -77,6 +87,31 @@ export const interviewSessionRepository = {
         ...(data.endedAt && { endedAt: data.endedAt }),
       },
     })
+  },
+
+  /** sessionId is @unique on FeedbackReport — one interview, one report. */
+  createFeedbackReport(sessionId: string, report: FeedbackReportDto) {
+    return prisma.feedbackReport.create({
+      data: {
+        sessionId,
+        overallScore: report.overallScore,
+        dimensionScores: report.dimensionScores as unknown as Prisma.InputJsonValue,
+        topicCoverage: report.topicCoverage as unknown as Prisma.InputJsonValue,
+        difficultyReached: report.difficultyReached,
+        difficultyProgression: report.difficultyProgression,
+        durationMs: report.durationMs,
+        summary: report.summary,
+        topStrengths: report.topStrengths,
+        areasForImprovement: report.areasForImprovement,
+        missedOpportunities: report.missedOpportunities,
+        recommendedNextSteps: report.recommendedNextSteps,
+        actionablePracticeAdvice: report.actionablePracticeAdvice,
+      },
+    })
+  },
+
+  getFeedbackReport(sessionId: string) {
+    return prisma.feedbackReport.findUnique({ where: { sessionId } })
   },
 
   /** Voice-only bookkeeping — recorded once when a voice session joins.

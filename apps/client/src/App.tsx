@@ -3,9 +3,11 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { FullScreenSpinner } from './components/FullScreenSpinner'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { DashboardPage } from './pages/DashboardPage'
+import { InterviewCompletePage } from './pages/InterviewCompletePage'
 import { InterviewSetupPage } from './pages/InterviewSetupPage'
 import { LoginPage } from './pages/LoginPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { ReportPage } from './pages/ReportPage'
 import { SessionDetailsPage } from './pages/SessionDetailsPage'
 import { SignupPage } from './pages/SignupPage'
 import { ProtectedRoute } from './routes/ProtectedRoute'
@@ -41,6 +43,8 @@ function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/interview/new" element={<InterviewSetupPage />} />
             <Route path="/sessions/:id" element={<SessionDetailsPage />} />
+            <Route path="/sessions/:id/complete" element={<InterviewCompletePage />} />
+            <Route path="/sessions/:id/report" element={<ReportPage />} />
             <Route
               path="/sessions/:id/room"
               element={

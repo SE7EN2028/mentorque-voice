@@ -1,16 +1,24 @@
-import type { InterviewTurnResponseDto } from '@mentorque/shared'
+import type { FeedbackReportDto, InterviewTurnResponseDto, InterviewType } from '@mentorque/shared'
 import {
   createInitialEngineState,
   engineStateSchema,
   getBlueprint,
   getLLMProvider,
   processTurn,
+  type AnswerEvaluation,
+  type EngineState,
+  type InterviewBlueprint,
   type ProcessTurnResult,
 } from '@mentorque/interview-engine'
+import { generateFeedbackReport } from '@mentorque/feedback-engine'
 import { InterviewSessionError } from './errors.js'
 import { logger } from './logger.js'
 import { interviewSessionRepository } from './interview-session.repository.js'
-import { toEngineTranscriptTurn } from './interview-session.mapper.js'
+import {
+  toEngineTranscriptTurn,
+  toFeedbackReportDto,
+  toFeedbackTranscriptTurn,
+} from './interview-session.mapper.js'
 
 const RECENT_TRANSCRIPT_TURN_LIMIT = 6
 
@@ -43,6 +51,52 @@ async function getOwnedActiveSession(
     )
   }
   return session
+}
+
+/**
+ * Runs after the conversation has concluded — never awaited by the caller
+ * (see submitMessage/end below). Generates the feedback report via the
+ * independent Feedback Engine and, only on success, advances the session to
+ * COMPLETED. A failure here is logged and left at CLOSING rather than
+ * thrown: GET /report can then tell "still generating or failed" (CLOSING,
+ * no report row) apart from "done" (COMPLETED, report row present).
+ */
+async function finalizeWithFeedback(
+  sessionId: string,
+  interviewType: InterviewType,
+  blueprint: InterviewBlueprint,
+  finalState: EngineState,
+  endedAt: Date,
+): Promise<void> {
+  try {
+    const rows = await interviewSessionRepository.getAllTurns(sessionId)
+    const transcript = rows.map(toFeedbackTranscriptTurn)
+    const evaluationHistory = rows
+      .filter((row) => row.role === 'CANDIDATE' && row.evaluation !== null)
+      .map((row) => row.evaluation as unknown as AnswerEvaluation)
+
+    const report = await generateFeedbackReport({
+      interviewType,
+      blueprint,
+      transcript,
+      evaluationHistory,
+      finalMemory: finalState.memory,
+      startedAt: finalState.startedAt,
+      endedAt: endedAt.toISOString(),
+      maxDurationMs: finalState.maxDurationMs,
+    })
+
+    await interviewSessionRepository.createFeedbackReport(sessionId, report)
+    await interviewSessionRepository.updateSessionState(sessionId, {
+      engineState: finalState,
+      status: 'COMPLETED',
+      endedAt,
+    })
+
+    logger.info('feedback report generated', { sessionId, overallScore: report.overallScore })
+  } catch (error) {
+    logger.error('feedback report generation failed', { sessionId, error })
+  }
 }
 
 /**
@@ -145,10 +199,13 @@ export const interviewSessionService = {
       difficultyAtTurn: result.difficulty,
     })
 
+    const persistedState = { ...result.newState, elapsedMs }
+    const endedAt = result.isSessionOver ? new Date() : undefined
+
     await interviewSessionRepository.updateSessionState(sessionId, {
-      engineState: { ...result.newState, elapsedMs },
+      engineState: persistedState,
       status: result.isSessionOver ? 'CLOSING' : 'ACTIVE',
-      endedAt: result.isSessionOver ? new Date() : undefined,
+      endedAt,
     })
 
     logger.info('interview turn processed', {
@@ -156,6 +213,16 @@ export const interviewSessionService = {
       action: result.action,
       difficulty: result.difficulty,
     })
+
+    if (endedAt) {
+      void finalizeWithFeedback(
+        sessionId,
+        session.interviewType,
+        blueprint,
+        persistedState,
+        endedAt,
+      )
+    }
 
     return toTurnResponseDto(result)
   },
@@ -197,13 +264,18 @@ export const interviewSessionService = {
       actionTaken: result.action,
       difficultyAtTurn: result.difficulty,
     })
+    const persistedState = { ...result.newState, elapsedMs }
+    const endedAt = new Date()
+
     await interviewSessionRepository.updateSessionState(sessionId, {
-      engineState: { ...result.newState, elapsedMs },
+      engineState: persistedState,
       status: 'CLOSING',
-      endedAt: new Date(),
+      endedAt,
     })
 
     logger.info('interview ended by candidate', { sessionId })
+
+    void finalizeWithFeedback(sessionId, session.interviewType, blueprint, persistedState, endedAt)
 
     return toTurnResponseDto(result)
   },
@@ -224,5 +296,25 @@ export const interviewSessionService = {
     data: { livekitRoomName: string; sttProvider: string; ttsProvider: string },
   ): Promise<void> {
     await interviewSessionRepository.recordVoiceMetadata(sessionId, data)
+  },
+
+  async getReport(sessionId: string, userId: string): Promise<FeedbackReportDto> {
+    const session = await interviewSessionRepository.findSessionByIdAndUser(sessionId, userId)
+    if (!session) {
+      throw new InterviewSessionError(404, 'Session not found')
+    }
+
+    const report = await interviewSessionRepository.getFeedbackReport(sessionId)
+    if (!report) {
+      // CLOSING here means finalizeWithFeedback is still running, or failed
+      // and logged its error — either way, the client should keep polling
+      // rather than treat this as a permanent 404.
+      if (session.status === 'CLOSING' || session.status === 'ACTIVE') {
+        throw new InterviewSessionError(409, 'Feedback report is not ready yet')
+      }
+      throw new InterviewSessionError(404, 'Feedback report not found for this session')
+    }
+
+    return toFeedbackReportDto(report)
   },
 }
