@@ -43,7 +43,7 @@ export class GeminiProvider implements LLMProvider {
     this.client = new GoogleGenAI({ apiKey })
   }
 
-  async generateStructured<T>(params: GenerateStructuredParams): Promise<T> {
+  async generateStructured<T>(params: GenerateStructuredParams<T>): Promise<T> {
     const contents = params.messages.map((message) => ({
       role: message.role === 'assistant' ? ('model' as const) : ('user' as const),
       parts: [{ text: message.content }],

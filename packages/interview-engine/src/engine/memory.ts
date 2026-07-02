@@ -7,6 +7,28 @@ function dedupe(values: string[]): string[] {
   return Array.from(new Set(values))
 }
 
+/**
+ * Validates a topic string the model claims (topicCompleted/nextTopic)
+ * against the blueprint's actual topic list before trusting it — despite
+ * the prompt instructing "use the exact topic string, verbatim," a model
+ * can still paraphrase. An exact match is used as-is; a case/whitespace
+ * variant snaps to the blueprint's canonical string (avoids near-duplicate
+ * entries in completedTopics); anything else is dropped rather than
+ * corrupting state with a topic that doesn't correspond to real coverage.
+ */
+export function resolveTopic(
+  candidate: string | null,
+  blueprint: InterviewBlueprint,
+): string | null {
+  if (!candidate) return null
+
+  const allTopics = [...blueprint.requiredTopics, ...blueprint.optionalTopics]
+  if (allTopics.includes(candidate)) return candidate
+
+  const normalized = candidate.trim().toLowerCase()
+  return allTopics.find((topic) => topic.trim().toLowerCase() === normalized) ?? null
+}
+
 /** Deterministic fallback for when a guardrail forces ADVANCE_TOPIC but the
  * model (having proposed something else entirely) never set nextTopic —
  * without this the conversation would silently lose track of what topic
@@ -50,8 +72,11 @@ export function applyMemoryUpdates(
   let completedTopics = memory.completedTopics
   let currentTopic = memory.currentTopic
 
-  if (updates.topicCompleted && !completedTopics.includes(updates.topicCompleted)) {
-    completedTopics = [...completedTopics, updates.topicCompleted]
+  const resolvedTopicCompleted = resolveTopic(updates.topicCompleted, blueprint)
+  const resolvedNextTopic = resolveTopic(updates.nextTopic, blueprint)
+
+  if (resolvedTopicCompleted && !completedTopics.includes(resolvedTopicCompleted)) {
+    completedTopics = [...completedTopics, resolvedTopicCompleted]
   }
 
   if (finalAction === 'ADVANCE_TOPIC') {
@@ -59,7 +84,7 @@ export function applyMemoryUpdates(
       completedTopics = [...completedTopics, currentTopic]
     }
     const nextMemory = { ...memory, completedTopics }
-    currentTopic = updates.nextTopic ?? pickFallbackTopic(blueprint, nextMemory)
+    currentTopic = resolvedNextTopic ?? pickFallbackTopic(blueprint, nextMemory)
   }
 
   let unresolvedFollowUps = memory.unresolvedFollowUps

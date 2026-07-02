@@ -5,10 +5,21 @@ export interface LLMMessage {
   content: string
 }
 
-export interface GenerateStructuredParams {
+export interface ValidationResult<T> {
+  success: boolean
+  data?: T
+}
+
+export interface GenerateStructuredParams<T> {
   systemInstruction: string
   messages: LLMMessage[]
   responseSchema: JsonSchemaNode
+  /** Checks whether a parsed response is actually usable — typically a
+   * Zod schema's safeParse. The provider layer (ValidatingProvider) uses
+   * this to decide whether to retry, without ever needing to know what
+   * "valid" means for any particular caller. A plain GeminiProvider ignores
+   * this field entirely; it exists for the decorator that wraps it. */
+  validate: (value: unknown) => ValidationResult<T>
 }
 
 /**
@@ -17,5 +28,5 @@ export interface GenerateStructuredParams {
  * engine, prompt builder, and everything upstream never change.
  */
 export interface LLMProvider {
-  generateStructured<T>(params: GenerateStructuredParams): Promise<T>
+  generateStructured<T>(params: GenerateStructuredParams<T>): Promise<T>
 }

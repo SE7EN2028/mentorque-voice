@@ -461,8 +461,126 @@ async function offTopicCandidateScenario() {
   console.log('✔ off-topic-candidate + duration-guardrail assertions passed')
 }
 
+async function averageCandidateScenario() {
+  const blueprint = getBlueprint('SYSTEM_DESIGN')
+  const [topic1, topic2, topic3, topic4] = blueprint.requiredTopics
+  const mid = {
+    relevance: 6,
+    completeness: 5,
+    technicalAccuracy: 6,
+    problemSolving: 5,
+    communication: 6,
+  }
+
+  const { finalState, results } = await runScenario('Average candidate', 'SYSTEM_DESIGN', [
+    {
+      candidateMessage: null,
+      response: scripted({
+        action: 'ADVANCE_TOPIC',
+        difficulty: 3,
+        memoryUpdates: { nextTopic: topic1 },
+        assistantResponse:
+          "Hi, I'm your interviewer today. Let's start — how would you approach designing a URL shortener?",
+      }),
+    },
+    {
+      candidateMessage: "I'd want to know expected scale and whether custom aliases are needed.",
+      response: scripted({
+        evaluation: mid,
+        action: 'FOLLOW_UP',
+        difficulty: 3,
+        assistantResponse:
+          'Good start — what about the read/write ratio, does that change your approach?',
+      }),
+    },
+    {
+      candidateMessage:
+        "Reads would dominate heavily, so I'd lean on caching and maybe a read replica.",
+      response: scripted({
+        evaluation: mid,
+        action: 'ADVANCE_TOPIC',
+        difficulty: 3,
+        memoryUpdates: { topicCompleted: topic1, nextTopic: topic2 },
+        assistantResponse:
+          "That's reasonable. Let's move to the high-level architecture — walk me through the main components.",
+      }),
+    },
+    {
+      candidateMessage:
+        'An API layer, a key-generation service, and a datastore mapping short codes to URLs, behind a load balancer.',
+      response: scripted({
+        evaluation: mid,
+        action: 'ADVANCE_TOPIC',
+        difficulty: 4,
+        memoryUpdates: { topicCompleted: topic2, nextTopic: topic3 },
+        assistantResponse:
+          'Solid structure. Now — what storage would you pick for the mapping, and why?',
+      }),
+    },
+    // A slightly weaker moment — the model proposes lowering difficulty,
+    // which (unlike a veto on raising it) is always allowed through.
+    {
+      candidateMessage: 'Probably just... a SQL database I guess, nothing special about it.',
+      response: scripted({
+        evaluation: {
+          relevance: 5,
+          completeness: 3,
+          technicalAccuracy: 4,
+          problemSolving: 4,
+          communication: 5,
+        },
+        action: 'FOLLOW_UP',
+        difficulty: 3,
+        assistantResponse:
+          'Say more — why SQL over a key-value store here, given the access pattern you described earlier?',
+      }),
+    },
+    {
+      candidateMessage:
+        'Fair point — a key-value store fits better for simple lookups by key, SQL would be overkill.',
+      response: scripted({
+        evaluation: mid,
+        action: 'ADVANCE_TOPIC',
+        difficulty: 3,
+        memoryUpdates: { topicCompleted: topic3, nextTopic: topic4 },
+        assistantResponse: 'Good recovery. Last one — how would this scale as traffic grows 100x?',
+      }),
+    },
+    {
+      candidateMessage:
+        "I'd shard by key hash and add more cache layers, though I'm less sure about cross-shard analytics.",
+      response: scripted({
+        evaluation: mid,
+        action: 'CONCLUDE',
+        difficulty: 3,
+        memoryUpdates: { topicCompleted: topic4 },
+        assistantResponse: 'That covers what I needed — thanks for working through this with me.',
+      }),
+    },
+  ])
+
+  assert.equal(
+    results[3]?.difficulty,
+    4,
+    'difficulty should climb one step on consistently decent (not just weak) answers',
+  )
+  assert.equal(
+    results[4]?.difficulty,
+    3,
+    'a model-proposed decrease is always honored, distinct from the increase-veto on weak answers',
+  )
+  assert.equal(
+    finalState.memory.completedTopics.length,
+    4,
+    'all required topics should be completed for a middling-but-adequate candidate',
+  )
+  assert.equal(results.at(-1)?.isSessionOver, true)
+  console.log('✔ average-candidate assertions passed')
+}
+
 async function main() {
   await excellentCandidateScenario()
+  await averageCandidateScenario()
   await weakCandidateScenario()
   await vagueCandidateScenario()
   await offTopicCandidateScenario()

@@ -21,7 +21,7 @@ export class RateLimitedProvider implements LLMProvider {
     private readonly maxRetries = 3,
   ) {}
 
-  async generateStructured<T>(params: GenerateStructuredParams): Promise<T> {
+  async generateStructured<T>(params: GenerateStructuredParams<T>): Promise<T> {
     await this.waitForSlot()
     return this.callWithRetry<T>(params, 0)
   }
@@ -43,7 +43,7 @@ export class RateLimitedProvider implements LLMProvider {
     this.callTimestamps.push(Date.now())
   }
 
-  private async callWithRetry<T>(params: GenerateStructuredParams, attempt: number): Promise<T> {
+  private async callWithRetry<T>(params: GenerateStructuredParams<T>, attempt: number): Promise<T> {
     try {
       return await this.inner.generateStructured<T>(params)
     } catch (error) {

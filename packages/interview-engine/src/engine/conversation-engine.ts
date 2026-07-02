@@ -2,14 +2,13 @@ import type { TurnAction } from '@mentorque/shared'
 import type { InterviewBlueprint } from '../blueprints/types.js'
 import type { LLMProvider } from '../llm/llm-provider.js'
 import { promptBuilder } from '../prompt-builder/prompt-builder.js'
-import { turnResponseSchema } from '../prompt-builder/response-schema.js'
+import { turnResponseSchema, type TurnResponse } from '../prompt-builder/response-schema.js'
 import type { EngineState } from '../types/engine-state.js'
 import type { AnswerEvaluation } from '../types/evaluation.js'
 import type { EngineTranscriptTurn } from '../types/transcript.js'
 import { computeNextDifficulty } from './difficulty-controller.js'
-import { EngineResponseValidationError } from './errors.js'
 import { applyGuardrails } from './guardrails.js'
-import { applyMemoryUpdates, buildProgress } from './memory.js'
+import { applyMemoryUpdates, buildProgress, resolveTopic } from './memory.js'
 
 export interface ProcessTurnInput {
   blueprint: InterviewBlueprint
@@ -39,6 +38,12 @@ export interface ProcessTurnResult {
  * knowledge of Gemini specifically. Given the same LLMProvider response it
  * always transitions state the same way, which is what makes the guardrail
  * and memory logic unit-testable with a scripted fake provider.
+ *
+ * Response shape validation (and the retry-once-on-invalid-output policy)
+ * happens inside the injected LLMProvider via the `validate` callback below
+ * — not here. That keeps "what counts as valid" (the Zod schema) owned by
+ * the engine while the retry mechanics live in a provider-agnostic
+ * decorator any LLMProvider benefits from, Gemini or otherwise.
  */
 export async function processTurn(
   input: ProcessTurnInput,
@@ -55,27 +60,24 @@ export async function processTurn(
     forceConclude,
   })
 
-  const rawResponse = await llmProvider.generateStructured<unknown>({
+  const response = await llmProvider.generateStructured<TurnResponse>({
     systemInstruction: prompt.systemInstruction,
     messages: prompt.messages,
     responseSchema: prompt.responseSchema,
+    validate: (value) => turnResponseSchema.safeParse(value),
   })
 
-  const parsed = turnResponseSchema.safeParse(rawResponse)
-  if (!parsed.success) {
-    throw new EngineResponseValidationError(
-      'Model response did not match the expected turn schema',
-      parsed.error,
-    )
-  }
-  const response = parsed.data
+  const topicCompletedThisTurn = resolveTopic(
+    response.memoryUpdates.topicCompleted,
+    input.blueprint,
+  )
 
   const guardrailResult = applyGuardrails({
     proposedAction: response.decision.action,
     state,
     blueprint: input.blueprint,
     forceConclude,
-    topicCompletedThisTurn: response.memoryUpdates.topicCompleted,
+    topicCompletedThisTurn,
   })
 
   const nextDifficulty = computeNextDifficulty(
