@@ -64,8 +64,9 @@ model InterviewSession {
   resumeContext         String? @map("resume_context")
   jobDescriptionContext String? @map("job_description_context")
 
-  // Reserved for later phases (conversation engine state, provider/model
-  // bookkeeping). Untouched by Phase 2 — no code reads or writes these yet.
+  // engineState holds the conversation engine's EngineState (including the
+  // nested ConversationMemory) as defined in packages/interview-engine —
+  // opaque jsonb here, typed and Zod-validated on the way in/out there.
   engineState Json? @map("engine_state") @db.JsonB
   metadata    Json? @db.JsonB
 
@@ -74,8 +75,47 @@ model InterviewSession {
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transcriptTurns TranscriptTurn[]
 
   @@index([userId])
   @@map("interview_sessions")
+}
+
+enum TurnRole {
+  INTERVIEWER
+  CANDIDATE
+}
+
+// Keep these values in sync with TURN_ACTIONS in
+// packages/shared/src/interviews/turn-action.ts.
+enum TurnAction {
+  FOLLOW_UP
+  PROBE
+  CHALLENGE
+  ADVANCE_TOPIC
+  CONCLUDE
+}
+
+model TranscriptTurn {
+  id       String   @id @default(cuid())
+  sessionId String  @map("session_id")
+  sequence Int
+  role     TurnRole
+  content  String
+
+  // Only set on CANDIDATE turns — the 8-dimension AnswerEvaluation from
+  // packages/interview-engine, nullable per dimension by interview type.
+  evaluation Json? @db.JsonB
+
+  // Only set on INTERVIEWER turns.
+  actionTaken      TurnAction? @map("action_taken")
+  difficultyAtTurn Int?        @map("difficulty_at_turn")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, sequence])
+  @@map("transcript_turns")
 }

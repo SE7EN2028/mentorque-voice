@@ -5,6 +5,7 @@ import helmet from 'helmet'
 import morgan from 'morgan'
 import { errorHandler } from './middleware/errorHandler.js'
 import { authRouter } from './modules/auth/auth.routes.js'
+import { interviewsRouter } from './modules/interviews/interviews.routes.js'
 import { sessionsRouter } from './modules/sessions/sessions.routes.js'
 import { uploadsRouter } from './modules/uploads/uploads.routes.js'
 import { healthRouter } from './routes/health.js'
@@ -35,6 +36,7 @@ export function createApp() {
   app.use('/api/auth', authRouter)
   app.use('/api/sessions', sessionsRouter)
   app.use('/api/uploads', uploadsRouter)
+  app.use('/api/interviews', interviewsRouter)
 
   // 404 for anything that didn't match a route above
   app.use((_req: Request, res: Response) => {

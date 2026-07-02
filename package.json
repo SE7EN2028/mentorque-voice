@@ -10,13 +10,14 @@
     "packages/*"
   ],
   "scripts": {
-    "setup": "node scripts/setup-env.mjs && npm run build -w packages/shared && npm run build -w packages/db",
-    "dev": "concurrently -n shared,db,server,client -c yellow,magenta,green,blue \"npm:dev:shared\" \"npm:dev:db\" \"npm:dev:server\" \"npm:dev:client\"",
+    "setup": "node scripts/setup-env.mjs && npm run build -w packages/shared && npm run build -w packages/db && npm run build -w packages/interview-engine",
+    "dev": "concurrently -n shared,db,engine,server,client -c yellow,magenta,cyan,green,blue \"npm:dev:shared\" \"npm:dev:db\" \"npm:dev:engine\" \"npm:dev:server\" \"npm:dev:client\"",
     "dev:shared": "npm run dev -w packages/shared",
     "dev:db": "npm run dev -w packages/db",
+    "dev:engine": "npm run dev -w packages/interview-engine",
     "dev:server": "npm run dev -w apps/server",
     "dev:client": "npm run dev -w apps/client",
-    "build": "npm run build -w packages/shared && npm run build -w packages/db && npm run build -w apps/server && npm run build -w apps/client",
+    "build": "npm run build -w packages/shared && npm run build -w packages/db && npm run build -w packages/interview-engine && npm run build -w apps/server && npm run build -w apps/client",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
