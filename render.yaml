@@ -7,7 +7,7 @@ services:
     name: mentorque-server
     runtime: node
     plan: free
-    buildCommand: npm ci --include=dev && npm run build -w packages/shared && npm run build -w packages/db && npm run build -w packages/interview-engine && npm run build -w packages/feedback-engine && npm run build -w packages/interview-session && npm run build -w apps/server
+    buildCommand: NPM_CONFIG_PRODUCTION=false npm ci --include=dev && npm run build -w packages/shared && npm run build -w packages/db && npm run build -w packages/interview-engine && npm run build -w packages/feedback-engine && npm run build -w packages/interview-session && npm run build -w apps/server
     startCommand: npm run start -w apps/server
     healthCheckPath: /api/health
     envVars:
@@ -46,7 +46,7 @@ services:
     name: mentorque-agent
     runtime: node
     plan: free
-    buildCommand: npm ci --include=dev && npm run build -w packages/shared && npm run build -w packages/db && npm run build -w packages/interview-engine && npm run build -w packages/feedback-engine && npm run build -w packages/interview-session && npm run build -w apps/agent-worker
+    buildCommand: NPM_CONFIG_PRODUCTION=false npm ci --include=dev && npm run build -w packages/shared && npm run build -w packages/db && npm run build -w packages/interview-engine && npm run build -w packages/feedback-engine && npm run build -w packages/interview-session && npm run build -w apps/agent-worker
     startCommand: npm run start -w apps/agent-worker
     envVars:
       - key: NODE_VERSION
@@ -82,7 +82,7 @@ services:
   - type: web
     name: mentorque-client
     runtime: static
-    buildCommand: npm ci --include=dev && npm run build -w packages/shared && npm run build -w apps/client
+    buildCommand: NPM_CONFIG_PRODUCTION=false npm ci --include=dev && npm run build -w packages/shared && npm run build -w apps/client
     staticPublishPath: apps/client/dist
     routes:
       - type: rewrite
