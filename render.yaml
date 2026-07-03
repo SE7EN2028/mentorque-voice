@@ -18,12 +18,14 @@ services:
       - key: CLIENT_ORIGIN
         value: https://mentorque-client.onrender.com
       - key: LLM_PROVIDER
-        value: groq
+        value: gemini
       - key: GROQ_MODEL
         value: llama-3.1-8b-instant
       - key: JWT_SECRET
         generateValue: true
       - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
         sync: false
       - key: DATABASE_URL
         sync: false
@@ -54,7 +56,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: LLM_PROVIDER
-        value: groq
+        value: gemini
       - key: GROQ_MODEL
         value: llama-3.1-8b-instant
       - key: TTS_PROVIDER
@@ -64,6 +66,8 @@ services:
       - key: DISABLE_LOCAL_INFERENCE
         value: "1"
       - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
         sync: false
       - key: DATABASE_URL
         sync: false
