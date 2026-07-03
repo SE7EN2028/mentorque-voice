@@ -1,6 +1,10 @@
 import { LLMProviderError, LLMRateLimitError, LLMResponseParseError } from './errors.js'
-import type { JsonSchemaNode } from './json-schema.js'
 import type { GenerateStructuredParams, LLMProvider } from './llm-provider.js'
+import {
+  buildSchemaInstruction,
+  normalizeAgainstSchema,
+  stripCodeFence,
+} from './structured-json.js'
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 // Free-pool models can be slow (some route to reasoning models); a tight
@@ -26,77 +30,9 @@ interface OpenRouterResponseBody {
   error?: { message?: string; code?: number | string; metadata?: { raw?: unknown } }
 }
 
-// Converts our provider-agnostic schema into a standard JSON Schema object —
-// OpenRouter/OpenAI-dialect, the mirror of what GeminiProvider's
-// toGeminiSchema does for Gemini's own dialect.
-function toJsonSchema(node: JsonSchemaNode): Record<string, unknown> {
-  const schema: Record<string, unknown> = { type: node.nullable ? [node.type, 'null'] : node.type }
-
-  if (node.description) schema.description = node.description
-  if (node.enum) schema.enum = node.enum
-  if (node.required) schema.required = node.required
-  if (node.items) schema.items = toJsonSchema(node.items)
-  if (node.properties) {
-    schema.properties = Object.fromEntries(
-      Object.entries(node.properties).map(([key, value]) => [key, toJsonSchema(value)]),
-    )
-    schema.additionalProperties = false
-  }
-
-  return schema
-}
-
-// Most free OpenRouter models don't reliably honor `response_format:
-// json_schema` the way Gemini honors responseSchema, so the contract is
-// carried a second, more portable way too: spelled out as JSON Schema text
-// appended to the system prompt. json_object mode (set below) still
-// guarantees syntactically valid JSON; this is what tells the model which
-// fields to put in it.
-function buildSchemaInstruction(schema: JsonSchemaNode): string {
-  return [
-    '',
-    'Respond with ONLY a single JSON object — no markdown, no code fences, no commentary —',
-    'matching exactly this JSON Schema:',
-    JSON.stringify(toJsonSchema(schema)),
-  ].join('\n')
-}
-
-function stripCodeFence(text: string): string {
-  const trimmed = text.trim()
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(trimmed)
-  return fenced ? (fenced[1] ?? trimmed) : trimmed
-}
-
-// Gemini's structural schema enforcement never lets an array-typed field
-// come back as null — it's coerced to `[]` at the API level before the
-// provider ever sees it. OpenRouter's schema adherence is prompt-carried,
-// not enforced, and models routinely emit `null` for "no items" instead of
-// `[]` (deepseek-chat does this for memoryUpdates.newTechnologies). The
-// caller's Zod schema uses `.default([])`, which only applies to an absent
-// key, not an explicit null, so this normalizes the parsed value against our
-// own schema before handing it back — the same kind of dialect
-// reconciliation toGeminiSchema does for the request side, just for the
-// response side instead.
-function normalizeAgainstSchema(value: unknown, schema: JsonSchemaNode): unknown {
-  if (schema.type === 'array') {
-    if (value == null) return []
-    if (!Array.isArray(value)) return value
-    const itemSchema = schema.items
-    return itemSchema ? value.map((item) => normalizeAgainstSchema(item, itemSchema)) : value
-  }
-
-  if (schema.type === 'object' && schema.properties && value && typeof value === 'object') {
-    const result: Record<string, unknown> = { ...(value as Record<string, unknown>) }
-    for (const [key, propSchema] of Object.entries(schema.properties)) {
-      if (key in result) {
-        result[key] = normalizeAgainstSchema(result[key], propSchema)
-      }
-    }
-    return result
-  }
-
-  return value
-}
+// Schema-as-prompt, code-fence stripping, and null-array normalization all
+// live in structured-json.ts, shared with GroqProvider — both speak the
+// OpenAI-compatible dialect where schema adherence is prompt-carried.
 
 export class OpenRouterProvider implements LLMProvider {
   // A comma-separated model list becomes OpenRouter's `models` fallback

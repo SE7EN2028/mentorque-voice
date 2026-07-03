@@ -25,7 +25,7 @@ deterministic-and-LLM feedback report immediately after.
 | Frontend        | React 19 + Vite + TypeScript + Tailwind CSS v4     |
 | Backend API     | Node.js + Express 5 + TypeScript                   |
 | Voice worker    | Node.js + LiveKit Agents (Node SDK)                |
-| Conversation AI | OpenRouter (default) or Google Gemini 2.5 Flash    |
+| Conversation AI | Groq (default), OpenRouter, or Google Gemini 2.5 Flash |
 | Speech-to-text  | Deepgram                                           |
 | Text-to-speech  | Cartesia (default) or Google Gemini TTS            |
 | Database        | PostgreSQL (Neon) + Prisma                         |
@@ -56,8 +56,9 @@ packages/
 
 - Node.js 20+
 - A free [Neon](https://neon.tech) Postgres project
-- An [OpenRouter](https://openrouter.ai) API key (default conversation engine backend), or a
-  [Google AI Studio](https://aistudio.google.com) API key (Gemini) as an alternative
+- A [Groq](https://console.groq.com) API key (default conversation engine backend), an
+  [OpenRouter](https://openrouter.ai) API key, or a
+  [Google AI Studio](https://aistudio.google.com) API key (Gemini) as alternatives
 - A [LiveKit Cloud](https://livekit.io) project (URL + API key/secret) — needed for live voice
   interviews
 - A [Deepgram](https://deepgram.com) API key — speech-to-text for the voice agent
@@ -103,12 +104,18 @@ Once running:
 ### Choosing the conversation-engine LLM provider
 
 `LLM_PROVIDER` in `apps/server/.env` (and `apps/agent-worker/.env`, for voice interviews) picks
-the conversation engine's LLM backend — `openrouter` (default) or `gemini`. Both apps must be
+the conversation engine's LLM backend — `groq` (default), `openrouter`, or `gemini`. Both apps must be
 set the same way, since text interviews go through the server and voice interviews go through
 the agent worker, but both call the same `@mentorque/interview-engine` in-process.
 
-- `openrouter` (default): needs `OPENROUTER_API_KEY` from [openrouter.ai](https://openrouter.ai).
-  `OPENROUTER_MODEL` picks the model, defaulting to `deepseek/deepseek-chat`.
+- `groq` (default): needs `GROQ_API_KEY` from [console.groq.com](https://console.groq.com/keys).
+  `GROQ_MODEL` picks the model, defaulting to `llama-3.3-70b-versatile` — if that model is ever
+  retired or unavailable, set `GROQ_MODEL` to any JSON-mode-capable model from
+  [Groq's model list](https://console.groq.com/docs/models); no code changes needed. Groq's
+  generous free tier and very low latency make it the best fit for voice interviews.
+- `openrouter`: needs `OPENROUTER_API_KEY` from [openrouter.ai](https://openrouter.ai).
+  `OPENROUTER_MODEL` picks the model chain (comma-separated fallback list, max 3), defaulting to
+  a set of `:free` models. Note the free tier caps at 50 requests/day without purchased credits.
 - `gemini`: needs `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com). Note its
   free tier caps out fast (as low as 20 requests/day on some models) — fine for a quick try, not
   for a real interview session.
@@ -128,7 +135,7 @@ npm run dev:voice     # runs it, connects to LiveKit and waits for a room to joi
 
 Fill in `LIVEKIT_URL`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` in **both** `apps/server/.env`
 (issues the join token) and `apps/agent-worker/.env` (joins the room), plus `LLM_PROVIDER`
-(+ `OPENROUTER_API_KEY` or `GEMINI_API_KEY`), `DEEPGRAM_API_KEY`, and `CARTESIA_API_KEY` in
+(+ `GROQ_API_KEY`, `OPENROUTER_API_KEY`, or `GEMINI_API_KEY`), `DEEPGRAM_API_KEY`, and `CARTESIA_API_KEY` in
 `apps/agent-worker/.env`.
 
 TTS provider is picked by `TTS_PROVIDER` in `apps/agent-worker/.env` — `cartesia` (default,

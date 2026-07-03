@@ -17,7 +17,8 @@
     "lint": "eslint .",
     "demo": "tsx scripts/demo-scripted-conversations.ts",
     "test:retry": "tsx scripts/test-provider-retry.ts",
-    "test:openrouter": "tsx scripts/test-openrouter-provider.ts"
+    "test:openrouter": "tsx scripts/test-openrouter-provider.ts",
+    "test:groq": "tsx scripts/test-groq-provider.ts"
   },
   "dependencies": {
     "@google/genai": "^2.10.0",
