@@ -23,11 +23,24 @@ export class VoiceAgent extends voice.Agent {
   // instead of 409ing against a CLOSING session (and flipping it back to
   // ACTIVE mid-feedback-generation).
   private ended = false
+  // Committed-but-not-yet-answered utterance fragments, merged after
+  // `pauseGraceMs` of quiet (see onUserTurnCompleted).
+  private fragmentBuffer: string[] = []
+  private pauseTimer: ReturnType<typeof setTimeout> | undefined
 
   constructor(
     private readonly sessionId: string,
     private readonly userId: string,
     private readonly conversationAdapter: ConversationEngineAdapter,
+    // How long to sit on a committed utterance before answering, so a
+    // candidate pausing to think isn't cut off — if they resume, the next
+    // fragment resets the window and merges into the same engine turn.
+    // Exists because the SDK's own endpointing delay is unreliable in
+    // @livekit/agents 1.5.0: an STT-triggered end-of-turn pass recomputes
+    // its wait from a stale STT-projected lastSpeakingTime (seconds in the
+    // past), so turns commit almost immediately after silence no matter
+    // what turnHandling.endpointing is set to. 0 = answer immediately.
+    private readonly pauseGraceMs = 0,
   ) {
     super({
       instructions:
@@ -47,6 +60,13 @@ export class VoiceAgent extends voice.Agent {
    * ACTIVE). Marks the agent ended so turns queued behind it are dropped.
    */
   async runEndExclusive<T>(fn: () => Promise<T>): Promise<T> {
+    // Anything still sitting in the grace window is dropped — the candidate
+    // chose to end, and a post-farewell engine turn must not fire.
+    if (this.pauseTimer) {
+      clearTimeout(this.pauseTimer)
+      this.pauseTimer = undefined
+    }
+    this.fragmentBuffer = []
     const run = this.turnChain.then(() => {
       this.ended = true
       return fn()
@@ -73,9 +93,28 @@ export class VoiceAgent extends voice.Agent {
   async onUserTurnCompleted(_chatCtx: ChatContext, newMessage: ChatMessage): Promise<void> {
     const transcript = newMessage.textContent?.trim()
 
-    if (transcript) {
-      this.turnChain = this.turnChain.then(() => this.handleTurn(transcript))
-      await this.turnChain
+    if (transcript && !this.ended) {
+      this.fragmentBuffer.push(transcript)
+      // Caption each fragment as it lands so the on-screen transcript stays
+      // live even while the grace window is still open.
+      await this.voiceSession?.publishUpdate({
+        type: 'transcript',
+        speaker: 'CANDIDATE',
+        text: transcript,
+      })
+
+      if (this.pauseTimer) clearTimeout(this.pauseTimer)
+      if (this.pauseGraceMs <= 0) {
+        // No grace window: process inline and finish before returning, the
+        // same contract the pre-grace implementation had.
+        this.flushFragments()
+        await this.turnChain
+      } else {
+        // Grace window open: return immediately so the next fragment (the
+        // candidate resuming after a pause) can arrive and merge; the timer
+        // queues the merged turn when the window closes untouched.
+        this.pauseTimer = setTimeout(() => this.flushFragments(), this.pauseGraceMs)
+      }
     }
 
     // Always suppress the built-in reply generation — no `llm` plugin is
@@ -84,13 +123,19 @@ export class VoiceAgent extends voice.Agent {
     throw new voice.StopResponse()
   }
 
+  /** Merges everything said since the last engine turn and queues it for
+   * processing. Runs when the pause-grace window closes without the
+   * candidate resuming. */
+  private flushFragments(): void {
+    this.pauseTimer = undefined
+    const transcript = this.fragmentBuffer.join(' ').trim()
+    this.fragmentBuffer = []
+    if (!transcript) return
+    this.turnChain = this.turnChain.then(() => this.handleTurn(transcript))
+  }
+
   private async handleTurn(transcript: string): Promise<void> {
     if (this.ended) return
-    await this.voiceSession?.publishUpdate({
-      type: 'transcript',
-      speaker: 'CANDIDATE',
-      text: transcript,
-    })
     // The SDK's own state machine never enters 'thinking' here (that only
     // wraps built-in reply generation, which StopResponse suppresses), so
     // publish it manually for the several seconds the engine call takes.

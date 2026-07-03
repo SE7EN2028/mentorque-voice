@@ -174,11 +174,59 @@ async function testEmptyTranscriptSkipsEngineCall() {
   console.log('✔ empty/whitespace transcript is a no-op, not an empty engine call')
 }
 
+async function testPauseGraceMergesFragments() {
+  const adapter = new FakeConversationEngineAdapter()
+  adapter.nextResponse = {
+    assistantMessage: 'Interesting — tell me more.',
+    action: 'FOLLOW_UP',
+    difficulty: 3,
+    progress: {
+      stage: 'active',
+      questionsAskedCount: 2,
+      requiredTopicsCovered: 1,
+      requiredTopicsTotal: 3,
+      currentTopic: 'topic2',
+      elapsedMs: 1000,
+      maxDurationMs: 1_200_000,
+    },
+    isSessionOver: false,
+  }
+
+  const agent = new VoiceAgent('session_5', 'user_5', adapter, 120)
+  const voiceSession = new FakeVoiceSession()
+  agent.attachVoiceSession(voiceSession)
+
+  // Two utterances committed 50ms apart — a candidate pausing mid-answer.
+  await expectStopResponse(() =>
+    agent.onUserTurnCompleted({} as ChatContext, fakeChatMessage('I led the migration.')),
+  )
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  await expectStopResponse(() =>
+    agent.onUserTurnCompleted({} as ChatContext, fakeChatMessage('And we shipped early.')),
+  )
+
+  // Inside the grace window nothing has reached the engine yet.
+  assert.deepEqual(adapter.submitMessageCalls, [])
+
+  await new Promise((resolve) => setTimeout(resolve, 300))
+  assert.deepEqual(adapter.submitMessageCalls, ['I led the migration. And we shipped early.'])
+  assert.equal(
+    voiceSession.updates.filter((u) => u.type === 'transcript' && u.speaker === 'CANDIDATE')
+      .length,
+    2,
+    'each fragment still captions live',
+  )
+  console.log(
+    '✔ pause grace: fragments within the window merge into one engine turn, captions stay live',
+  )
+}
+
 async function main() {
   await testNormalTurn()
   await testSessionOverEndsVoiceSession()
   await testEngineFailureFallsBackGracefully()
   await testEmptyTranscriptSkipsEngineCall()
+  await testPauseGraceMergesFragments()
   console.log('\nVoiceAgent orchestration verified.')
 }
 

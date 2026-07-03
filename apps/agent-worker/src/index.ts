@@ -48,7 +48,17 @@ export default defineAgent({
     const sttProvider = getSpeechToTextProvider()
     const ttsProvider = getTextToSpeechProvider()
 
-    const voiceAgent = new VoiceAgent(interviewSessionId, userId, conversationAdapter)
+    // Candidates pause to think mid-answer — without a grace window they get
+    // answered the instant they take a breath. The SDK's own
+    // turnHandling.endpointing delays are NOT used for this: in
+    // @livekit/agents 1.5.0 the STT-triggered end-of-turn pass recomputes its
+    // wait from a stale STT-projected timestamp (seconds in the past), so
+    // turns commit ~immediately regardless of that config. VoiceAgent implements
+    // the pause tolerance instead: fragments committed within this window
+    // merge into one engine turn.
+    const pauseGraceMs = Number(process.env.TURN_END_MIN_SILENCE_MS) || 2000
+
+    const voiceAgent = new VoiceAgent(interviewSessionId, userId, conversationAdapter, pauseGraceMs)
 
     const session = new AgentSession({
       stt: sttProvider.createSTT(),
