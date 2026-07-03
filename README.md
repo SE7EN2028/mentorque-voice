@@ -68,24 +68,23 @@ packages/
 The web app (signup/login/dashboard/session history/reports) works without LiveKit/Deepgram/TTS
 credentials configured — only starting an actual live voice interview needs those.
 
-## Setup
+## Setup — 5 commands
 
 ```bash
-npm install
-npm run setup
+npm install          # 1. install all workspace dependencies
+npm run setup        # 2. create .env files from examples + build every package
+npm run db:migrate   # 3. apply the Prisma schema  (fill in your .env keys first — see below)
+npm run dev          # 4. start server (:4000) + client (:5173) + package watchers
+npm run dev:voice    # 5. (separate terminal) start the LiveKit voice agent
 ```
 
-Then fill in real credentials in each `.env` file (see below), and run the first migration:
+Between steps 2 and 3, paste your credentials into the generated `.env` files
+(`apps/server/.env`, `apps/agent-worker/.env`, `packages/db/.env`): a Neon `DATABASE_URL`,
+a Groq or Gemini key for the LLM, and LiveKit + Deepgram + Cartesia keys for voice.
+Each `.env.example` documents every variable.
 
-```bash
-npm run db:migrate
-npm run dev
-```
-
-`npm run setup` copies each `.env.example` to `.env` if missing (and reconciles in any new keys
-if the file already exists), generates a random `JWT_SECRET`, and builds every package the apps
-depend on. It's safe to re-run at any time — existing `.env` files and an already-generated
-secret are never overwritten, only missing keys are appended.
+`npm run setup` is safe to re-run at any time — existing `.env` files and the generated
+`JWT_SECRET` are never overwritten; only missing keys are appended.
 
 Once running:
 
