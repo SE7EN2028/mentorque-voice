@@ -20,7 +20,7 @@ services:
       - key: LLM_PROVIDER
         value: groq
       - key: GROQ_MODEL
-        value: llama-3.3-70b-versatile
+        value: llama-3.1-8b-instant
       - key: JWT_SECRET
         generateValue: true
       - key: GROQ_API_KEY
@@ -56,7 +56,7 @@ services:
       - key: LLM_PROVIDER
         value: groq
       - key: GROQ_MODEL
-        value: llama-3.3-70b-versatile
+        value: llama-3.1-8b-instant
       - key: TTS_PROVIDER
         value: cartesia
       - key: TURN_END_MIN_SILENCE_MS
