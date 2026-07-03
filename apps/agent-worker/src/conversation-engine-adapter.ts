@@ -20,6 +20,10 @@ export interface ConversationEngineAdapter {
     sessionId: string,
     data: { livekitRoomName: string; sttProvider: string; ttsProvider: string },
   ): Promise<void>
+  /** Resolves once any in-flight feedback generation for the session
+   * settles — awaited before the worker's job process exits so the report
+   * write isn't killed by process.exit. */
+  waitForFeedbackCompletion(sessionId: string): Promise<void>
 }
 
 export class InterviewEngineAdapter implements ConversationEngineAdapter {
@@ -44,5 +48,9 @@ export class InterviewEngineAdapter implements ConversationEngineAdapter {
     data: { livekitRoomName: string; sttProvider: string; ttsProvider: string },
   ) {
     return interviewSessionService.recordVoiceMetadata(sessionId, data)
+  }
+
+  waitForFeedbackCompletion(sessionId: string) {
+    return interviewSessionService.waitForFeedbackCompletion(sessionId)
   }
 }

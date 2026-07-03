@@ -112,14 +112,73 @@ export default defineAgent({
         clientReadySignalReceived = true
         resolveClientReady?.()
       } else if (payload.type === 'end_session') {
-        try {
-          const result = await conversationAdapter.end(interviewSessionId, userId)
-          await voiceSession.speak(result.assistantMessage)
-        } catch (error) {
-          logger.error('failed to end interview gracefully', { error, interviewSessionId })
-        } finally {
-          await voiceSession.end()
-        }
+        // Behind any in-flight turn: ending must not interleave with a
+        // pending LLM call (stray reply after the farewell, status
+        // regressed from CLOSING to ACTIVE).
+        await voiceAgent.runEndExclusive(async () => {
+          try {
+            let result
+            try {
+              result = await conversationAdapter.end(interviewSessionId, userId)
+            } catch (firstError) {
+              // The farewell turn rides the same free-tier LLM pools as
+              // everything else; a momentary pool exhaustion here would
+              // otherwise strand the session ACTIVE with no report. One
+              // spaced retry rides out the typical recovery window.
+              logger.warn('end failed once — retrying in 15s', {
+                error: firstError,
+                interviewSessionId,
+              })
+              await new Promise((resolve) => setTimeout(resolve, 15_000))
+              result = await conversationAdapter.end(interviewSessionId, userId)
+            }
+            // Caption + isSessionOver go out before the farewell plays: the
+            // client navigates to the completion page off this progress
+            // payload, and previously nothing on this path ever sent it —
+            // leaving the End Interview button stuck on "Ending…" forever.
+            await voiceSession.publishUpdate({
+              type: 'transcript',
+              speaker: 'AI',
+              text: result.assistantMessage,
+            })
+            // Farewell plays out fully BEFORE isSessionOver goes out — the
+            // client navigates away (disconnecting the room) soon after it
+            // sees that payload.
+            await voiceSession.speak(result.assistantMessage, { awaitPlayout: true })
+            await voiceSession.publishUpdate({
+              type: 'progress',
+              action: result.action,
+              difficulty: result.difficulty,
+              progress: result.progress,
+              isSessionOver: true,
+            })
+          } catch (error) {
+            // end() throws 409 when the session isn't ACTIVE (e.g. the
+            // candidate ends before the opening turn persisted, or a repeat
+            // click after CLOSING) — the room must still wind down and the
+            // client must still be released to the completion page.
+            logger.error('failed to end interview gracefully', { error, interviewSessionId })
+            await voiceSession
+              .publishUpdate({
+                type: 'progress',
+                action: 'CONCLUDE',
+                difficulty: 0,
+                progress: {
+                  stage: 'completed',
+                  questionsAskedCount: 0,
+                  requiredTopicsCovered: 0,
+                  requiredTopicsTotal: 0,
+                  currentTopic: null,
+                  elapsedMs: 0,
+                  maxDurationMs: 0,
+                },
+                isSessionOver: true,
+              })
+              .catch(() => {})
+          } finally {
+            await voiceSession.end()
+          }
+        })
       }
     })
 
@@ -152,16 +211,16 @@ export default defineAgent({
 
       if (status === 'CREATED') {
         const opening = await conversationAdapter.start(interviewSessionId, userId)
-        await voiceSession.speak(opening.assistantMessage)
         await voiceSession.publishUpdate({
           type: 'transcript',
           speaker: 'AI',
           text: opening.assistantMessage,
         })
+        await voiceSession.speak(opening.assistantMessage)
       } else if (status === 'ACTIVE') {
         await voiceSession.speak("Welcome back — let's continue where we left off.")
       } else {
-        await voiceSession.speak('This interview has already ended.')
+        await voiceSession.speak('This interview has already ended.', { awaitPlayout: true })
         await voiceSession.end()
         return
       }
@@ -203,7 +262,18 @@ export default defineAgent({
     })
 
     ctx.addShutdownCallback(async () => {
-      logger.info('interview job shutting down', { interviewSessionId })
+      // The job process exits right after shutdown callbacks run, but two
+      // things may still be in flight in this same process: a turn/end()
+      // whose LLM call hasn't persisted yet (a participant disconnect
+      // triggers shutdown immediately), and the fired-and-forgotten
+      // feedback generation. Without these awaits, process.exit kills them
+      // mid-flight — no report row, session stranded, client polls forever.
+      logger.info('interview job shutting down — draining in-flight work', {
+        interviewSessionId,
+      })
+      await voiceAgent.waitForIdle()
+      await conversationAdapter.waitForFeedbackCompletion(interviewSessionId)
+      logger.info('interview job shut down cleanly', { interviewSessionId })
     })
   },
 })

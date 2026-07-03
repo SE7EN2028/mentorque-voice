@@ -25,7 +25,7 @@ deterministic-and-LLM feedback report immediately after.
 | Frontend        | React 19 + Vite + TypeScript + Tailwind CSS v4     |
 | Backend API     | Node.js + Express 5 + TypeScript                   |
 | Voice worker    | Node.js + LiveKit Agents (Node SDK)                |
-| Conversation AI | Google Gemini 2.5 Flash (`@google/genai`)          |
+| Conversation AI | OpenRouter (default) or Google Gemini 2.5 Flash    |
 | Speech-to-text  | Deepgram                                           |
 | Text-to-speech  | Cartesia (default) or Google Gemini TTS            |
 | Database        | PostgreSQL (Neon) + Prisma                         |
@@ -56,7 +56,8 @@ packages/
 
 - Node.js 20+
 - A free [Neon](https://neon.tech) Postgres project
-- A [Google AI Studio](https://aistudio.google.com) API key (Gemini)
+- An [OpenRouter](https://openrouter.ai) API key (default conversation engine backend), or a
+  [Google AI Studio](https://aistudio.google.com) API key (Gemini) as an alternative
 - A [LiveKit Cloud](https://livekit.io) project (URL + API key/secret) — needed for live voice
   interviews
 - A [Deepgram](https://deepgram.com) API key — speech-to-text for the voice agent
@@ -99,6 +100,22 @@ Once running:
    in its own env file — each app's `.env` is only loaded from that app's own directory)
 4. Run `npm run db:migrate` to apply every migration
 
+### Choosing the conversation-engine LLM provider
+
+`LLM_PROVIDER` in `apps/server/.env` (and `apps/agent-worker/.env`, for voice interviews) picks
+the conversation engine's LLM backend — `openrouter` (default) or `gemini`. Both apps must be
+set the same way, since text interviews go through the server and voice interviews go through
+the agent worker, but both call the same `@mentorque/interview-engine` in-process.
+
+- `openrouter` (default): needs `OPENROUTER_API_KEY` from [openrouter.ai](https://openrouter.ai).
+  `OPENROUTER_MODEL` picks the model, defaulting to `deepseek/deepseek-chat`.
+- `gemini`: needs `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com). Note its
+  free tier caps out fast (as low as 20 requests/day on some models) — fine for a quick try, not
+  for a real interview session.
+
+Swapping providers is just the one env var — the conversation engine, prompt builder, guardrails,
+and feedback engine are all provider-agnostic and never change.
+
 ### Enabling live voice interviews
 
 The voice agent worker (`apps/agent-worker`) is a separate process from the web server, started
@@ -110,8 +127,9 @@ npm run dev:voice     # runs it, connects to LiveKit and waits for a room to joi
 ```
 
 Fill in `LIVEKIT_URL`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` in **both** `apps/server/.env`
-(issues the join token) and `apps/agent-worker/.env` (joins the room), plus
-`GEMINI_API_KEY`, `DEEPGRAM_API_KEY`, and `CARTESIA_API_KEY` in `apps/agent-worker/.env`.
+(issues the join token) and `apps/agent-worker/.env` (joins the room), plus `LLM_PROVIDER`
+(+ `OPENROUTER_API_KEY` or `GEMINI_API_KEY`), `DEEPGRAM_API_KEY`, and `CARTESIA_API_KEY` in
+`apps/agent-worker/.env`.
 
 TTS provider is picked by `TTS_PROVIDER` in `apps/agent-worker/.env` — `cartesia` (default,
 used for both development and demos) or `google` (Gemini TTS, needs `GOOGLE_API_KEY`; note

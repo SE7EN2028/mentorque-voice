@@ -1,4 +1,4 @@
-import { LLMRateLimitError, LLMResponseParseError } from './errors.js'
+import { LLMProviderError, LLMRateLimitError, LLMResponseParseError } from './errors.js'
 import type { GenerateStructuredParams, LLMProvider } from './llm-provider.js'
 
 /**
@@ -24,6 +24,13 @@ export class ValidatingProvider implements LLMProvider {
       return retry.data
     }
 
+    // When both attempts died in transport (timeout, network, auth) rather
+    // than producing unusable content, surface that error instead of a
+    // misleading "invalid structured output" — a bad API key must not read
+    // as a model-quality problem.
+    if (retry.error instanceof LLMProviderError) {
+      throw retry.error
+    }
     throw new LLMResponseParseError(
       'Model returned invalid structured output twice in a row (initial attempt + one retry)',
     )
@@ -31,7 +38,7 @@ export class ValidatingProvider implements LLMProvider {
 
   private async attempt<T>(
     params: GenerateStructuredParams<T>,
-  ): Promise<{ success: boolean; data?: T }> {
+  ): Promise<{ success: boolean; data?: T; error?: unknown }> {
     try {
       const raw = await this.inner.generateStructured<T>(params)
       return params.validate(raw)
@@ -44,7 +51,7 @@ export class ValidatingProvider implements LLMProvider {
       if (error instanceof LLMRateLimitError) {
         throw error
       }
-      return { success: false }
+      return { success: false, error }
     }
   }
 }

@@ -4,6 +4,10 @@ import { ApiError } from '../api/client'
 import { feedbackApi } from '../api/feedback'
 
 const POLL_INTERVAL_MS = 3000
+// Report generation normally lands in under a minute; if it's still 409ing
+// after this many polls the generation failed hard (e.g. free-tier LLM pools
+// exhausted) — surface an error instead of spinning forever.
+const MAX_PENDING_POLLS = 50
 
 export type FeedbackReportState =
   | { status: 'loading' }
@@ -26,6 +30,7 @@ export function useFeedbackReport(sessionId: string): FeedbackReportState {
 
     let cancelled = false
     let timeoutId: ReturnType<typeof setTimeout>
+    let pendingPolls = 0
 
     const poll = () => {
       feedbackApi
@@ -37,6 +42,15 @@ export function useFeedbackReport(sessionId: string): FeedbackReportState {
         .catch((err: unknown) => {
           if (cancelled) return
           if (err instanceof ApiError && err.status === 409) {
+            pendingPolls += 1
+            if (pendingPolls >= MAX_PENDING_POLLS) {
+              setState({
+                status: 'error',
+                message:
+                  'Your feedback report is taking longer than expected. Please check back from your dashboard in a few minutes.',
+              })
+              return
+            }
             setState({ status: 'pending' })
             timeoutId = setTimeout(poll, POLL_INTERVAL_MS)
             return

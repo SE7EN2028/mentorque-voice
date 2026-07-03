@@ -22,6 +22,21 @@ import {
 
 const RECENT_TRANSCRIPT_TURN_LIMIT = 6
 
+// In-flight feedback generations, keyed by session id. Callers stay
+// fire-and-forget (submitMessage/end return immediately), but short-lived
+// processes — the LiveKit agent-worker job exits right after the interview —
+// can await waitForFeedbackCompletion() so the report isn't killed mid-write
+// by process.exit. Also lets getReport tell "generating" apart from "failed
+// and needs a retry".
+const pendingFeedback = new Map<string, Promise<void>>()
+
+function trackFeedback(sessionId: string, run: Promise<void>): void {
+  pendingFeedback.set(
+    sessionId,
+    run.finally(() => pendingFeedback.delete(sessionId)),
+  )
+}
+
 // Deliberately excludes `evaluation` and `newState` from ProcessTurnResult —
 // scores aren't shown to the candidate mid-interview, and engine state is
 // an internal persistence detail, not part of the API contract.
@@ -215,12 +230,9 @@ export const interviewSessionService = {
     })
 
     if (endedAt) {
-      void finalizeWithFeedback(
+      trackFeedback(
         sessionId,
-        session.interviewType,
-        blueprint,
-        persistedState,
-        endedAt,
+        finalizeWithFeedback(sessionId, session.interviewType, blueprint, persistedState, endedAt),
       )
     }
 
@@ -275,7 +287,10 @@ export const interviewSessionService = {
 
     logger.info('interview ended by candidate', { sessionId })
 
-    void finalizeWithFeedback(sessionId, session.interviewType, blueprint, persistedState, endedAt)
+    trackFeedback(
+      sessionId,
+      finalizeWithFeedback(sessionId, session.interviewType, blueprint, persistedState, endedAt),
+    )
 
     return toTurnResponseDto(result)
   },
@@ -298,6 +313,14 @@ export const interviewSessionService = {
     await interviewSessionRepository.recordVoiceMetadata(sessionId, data)
   },
 
+  /** Resolves once any in-flight feedback generation for this session
+   * settles (success or failure). Resolves immediately when none is
+   * running. The agent-worker awaits this before its job process exits so
+   * the report write isn't killed mid-flight. */
+  async waitForFeedbackCompletion(sessionId: string): Promise<void> {
+    await pendingFeedback.get(sessionId)
+  },
+
   async getReport(sessionId: string, userId: string): Promise<FeedbackReportDto> {
     const session = await interviewSessionRepository.findSessionByIdAndUser(sessionId, userId)
     if (!session) {
@@ -310,6 +333,29 @@ export const interviewSessionService = {
       // and logged its error — either way, the client should keep polling
       // rather than treat this as a permanent 404.
       if (session.status === 'CLOSING' || session.status === 'ACTIVE') {
+        // A CLOSING session with no report row and no in-flight generation
+        // is a failed (or killed-with-its-process) finalize — without this
+        // re-trigger the client would poll 409 forever with nothing ever
+        // producing the report.
+        if (
+          session.status === 'CLOSING' &&
+          !pendingFeedback.has(sessionId) &&
+          session.engineState &&
+          session.endedAt
+        ) {
+          const state = engineStateSchema.parse(session.engineState)
+          logger.warn('re-triggering failed feedback generation', { sessionId })
+          trackFeedback(
+            sessionId,
+            finalizeWithFeedback(
+              sessionId,
+              session.interviewType,
+              getBlueprint(session.interviewType),
+              state,
+              session.endedAt,
+            ),
+          )
+        }
         throw new InterviewSessionError(409, 'Feedback report is not ready yet')
       }
       throw new InterviewSessionError(404, 'Feedback report not found for this session')

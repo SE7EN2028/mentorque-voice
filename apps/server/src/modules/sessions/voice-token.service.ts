@@ -41,7 +41,9 @@ export const voiceTokenService = {
 
     const at = new AccessToken(requireEnv('LIVEKIT_API_KEY'), requireEnv('LIVEKIT_API_SECRET'), {
       identity: userId,
-      ttl: '30m',
+      // Longest blueprint runs 30 minutes — a token that expires exactly
+      // then breaks LiveKit's reconnect/resume late in a long interview.
+      ttl: '2h',
     })
     at.addGrant({
       roomJoin: true,

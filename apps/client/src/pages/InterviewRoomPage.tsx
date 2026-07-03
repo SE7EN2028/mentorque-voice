@@ -100,6 +100,12 @@ export function InterviewRoomPage() {
       audio
       video={false}
       onDisconnected={() => navigate(`/sessions/${id}/complete`, { replace: true })}
+      onError={(error) =>
+        setJoinState({
+          status: 'error',
+          message: `Could not connect to the interview room: ${error.message}`,
+        })
+      }
     >
       <RoomAudioRenderer />
       <InterviewRoomContent interviewType={joinState.interviewType} sessionId={id ?? ''} />
@@ -126,6 +132,14 @@ function InterviewRoomContent({
   const [dialog, setDialog] = useState<'end' | 'leave' | null>(null)
 
   const agentHeardFromRef = useRef(false)
+  const endFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(
+    () => () => {
+      if (endFallbackTimerRef.current) clearTimeout(endFallbackTimerRef.current)
+    },
+    [],
+  )
 
   const handleUpdate = useCallback(
     (raw: Uint8Array) => {
@@ -162,16 +176,21 @@ function InterviewRoomContent({
   // Tells the agent-worker this browser's data-channel listener is actually
   // subscribed now, so it knows it's safe to start speaking — see
   // VoiceControlPayload's client_ready doc comment for the race this closes.
-  // A single fire-and-forget send isn't enough: the agent-worker takes a few
-  // seconds to spin up and join the room (spawning its job process, running
-  // model init, calling session.start()), so the first ping almost always
-  // gets sent — and dropped — before the agent's own control-topic handler
-  // even exists. Resending on an interval until the agent actually speaks
-  // guarantees at least one ping lands after that handler is registered.
+  // Must wait for an actual Connected state before the first send: LiveKit's
+  // publisher data transport memoizes its connection promise on the engine
+  // the first time it's requested, and never retries it — so firing sendText
+  // before the room has finished connecting (routine, since child effects
+  // run before LiveKitRoom's own connect() effect) poisons that promise
+  // permanently, and every later retry just awaits the same dead promise
+  // forever, even once the underlying connection is completely healthy.
+  // Once actually connected, a short retry loop still covers the agent-worker
+  // side of this race (it takes a few seconds to spin up its job process and
+  // register its own control-topic handler).
   useEffect(() => {
-    // sendText can reject (e.g. the data transport isn't up yet right after
-    // joining) — that's expected on early attempts and the next retry tick
-    // covers it, so failures here are silently ignored rather than logged.
+    if (connectionState !== ConnectionState.Connected) return
+
+    // sendText can still reject occasionally right at this transition —
+    // the next retry tick covers it, so failures here are silently ignored.
     const send = () =>
       void localParticipant
         .sendText(JSON.stringify({ type: 'client_ready' } satisfies VoiceControlPayload), {
@@ -189,13 +208,20 @@ function InterviewRoomContent({
     }, 500)
 
     return () => clearInterval(intervalId)
-  }, [localParticipant])
+  }, [localParticipant, connectionState])
 
+  // Only after Connected: firing this while the room is still connecting
+  // races the engine setup and can reject with a publish timeout — which
+  // would show "Microphone unavailable" for what is really just a slow
+  // connection (LiveKitRoom's `audio` prop enables the mic on connect
+  // anyway; this is the belt-and-braces pass that surfaces real permission
+  // denials).
   useEffect(() => {
+    if (connectionState !== ConnectionState.Connected) return
     localParticipant.setMicrophoneEnabled(true).catch(() => {
       setMicError('Microphone unavailable — check your browser permissions.')
     })
-  }, [localParticipant])
+  }, [localParticipant, connectionState])
 
   const handleToggleMute = useCallback(() => {
     void localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled)
@@ -203,10 +229,27 @@ function InterviewRoomContent({
 
   const handleEndInterview = useCallback(async () => {
     setIsEnding(true)
-    await localParticipant.sendText(JSON.stringify({ type: 'end_session' }), {
-      topic: VOICE_CONTROL_TOPIC,
-    })
-  }, [localParticipant])
+    try {
+      await localParticipant.sendText(JSON.stringify({ type: 'end_session' }), {
+        topic: VOICE_CONTROL_TOPIC,
+      })
+      // The agent answers with an isSessionOver progress payload (or hangs
+      // up the room), either of which navigates away. If neither arrives —
+      // agent crashed, message lost — don't leave the button stuck on
+      // "Ending…" forever; the completion page handles a still-generating
+      // report anyway.
+      // Generous: the agent's end path is LLM farewell generation + full
+      // TTS playout before it signals isSessionOver — routinely 20-30s on
+      // free-tier models. Firing early disconnects the room and kills the
+      // end mid-flight.
+      endFallbackTimerRef.current = setTimeout(
+        () => navigate(`/sessions/${sessionId}/complete`, { replace: true }),
+        45_000,
+      )
+    } catch {
+      setIsEnding(false)
+    }
+  }, [localParticipant, navigate, sessionId])
 
   return (
     <div className="relative flex h-screen flex-col overflow-hidden bg-canvas font-sans text-ink">
@@ -315,7 +358,12 @@ function InterviewRoomContent({
           confirmLabel="Leave Interview"
           confirmVariant="danger"
           onCancel={() => setDialog(null)}
-          onConfirm={() => navigate('/dashboard', { replace: true })}
+          onConfirm={() => {
+            // The dialog promises the session is discarded — actually mark
+            // it so, or it stays CREATED/ACTIVE and keeps offering "rejoin".
+            void sessionsApi.update(sessionId, { status: 'ABANDONED' }).catch(() => {})
+            navigate('/dashboard', { replace: true })
+          }}
         />
       )}
     </div>

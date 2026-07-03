@@ -48,7 +48,10 @@ export class RateLimitedProvider implements LLMProvider {
       return await this.inner.generateStructured<T>(params)
     } catch (error) {
       if (error instanceof LLMRateLimitError && attempt < this.maxRetries) {
-        await sleep(2 ** attempt * 1000)
+        // 2s/4s/8s: free-tier pool exhaustion (the common 429 source here)
+        // recovers on the order of seconds, and each retry re-runs the
+        // provider's whole model fallback chain.
+        await sleep(2 ** attempt * 2000)
         return this.callWithRetry<T>(params, attempt + 1)
       }
       throw error

@@ -108,8 +108,17 @@ export async function processTurn(
     memory: nextMemory,
   }
 
+  // A guardrail-forced CONCLUDE (candidate ended the interview, time cap
+  // hit) usually lands while the model proposed another question — speaking
+  // that question and then hanging up is broken. Substitute a deterministic
+  // closing line; every other override keeps the model's text.
+  const assistantMessage =
+    isSessionOver && response.decision.action !== 'CONCLUDE'
+      ? 'Thank you for your time today — that wraps up our interview. Your feedback report will be ready shortly.'
+      : response.assistantResponse
+
   return {
-    assistantMessage: response.assistantResponse,
+    assistantMessage,
     action: guardrailResult.action,
     difficulty: nextDifficulty,
     evaluation: input.candidateMessage === null ? null : response.evaluation,
