@@ -60,6 +60,14 @@ export default defineAgent({
 
     const voiceAgent = new VoiceAgent(interviewSessionId, userId, conversationAdapter, pauseGraceMs)
 
+    // Constrained hosts (e.g. Render free tier at 0.1 CPU / 512MB) cannot
+    // run the silero VAD + end-of-turn native inference models — their
+    // runner never initializes and realtime inference would starve the CPU
+    // anyway. DISABLE_LOCAL_INFERENCE=1 switches turn detection to
+    // Deepgram's own SpeechStarted/UtteranceEnd events instead: barge-in is
+    // slightly less snappy, but no local inference is needed at all.
+    const disableLocalInference = process.env.DISABLE_LOCAL_INFERENCE === '1'
+
     const session = new AgentSession({
       stt: sttProvider.createSTT(),
       tts: ttsProvider.createTTS(),
@@ -67,6 +75,9 @@ export default defineAgent({
       // and throws StopResponse, so a built-in LLM plugin would never run.
       // Interruption/barge-in is on by default (turnHandling.interruption),
       // no explicit config needed.
+      ...(disableLocalInference
+        ? { vad: null, turnHandling: { turnDetection: 'stt' as const } }
+        : {}),
     })
 
     session.on(AgentSessionEventTypes.Error, (event) => {
@@ -292,6 +303,11 @@ cli.runApp(
   new ServerOptions({
     agent: fileURLToPath(import.meta.url),
     agentName: AGENT_NAME,
+    // Slow/constrained hosts need generous child-process boot time — the
+    // default init timeout flaps forever at 0.1 CPU — and can't afford a
+    // pool of prewarmed job processes in 512MB.
+    initializeProcessTimeout: 120_000,
+    numIdleProcesses: 1,
     // On PaaS hosts (Render/Railway) bind the SDK's built-in health-check
     // HTTP server to the platform-assigned port so this worker can deploy
     // as a plain web service. Locally PORT is unset and the SDK default is

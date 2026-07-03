@@ -61,6 +61,8 @@ services:
         value: cartesia
       - key: TURN_END_MIN_SILENCE_MS
         value: "2000"
+      - key: DISABLE_LOCAL_INFERENCE
+        value: "1"
       - key: GROQ_API_KEY
         sync: false
       - key: DATABASE_URL
