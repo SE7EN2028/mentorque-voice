@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import Module from 'node:module'
 import { fileURLToPath } from 'node:url'
 import {
   AgentSession,
@@ -21,6 +22,28 @@ import { LiveKitVoiceSession } from './voice-session.js'
 // in apps/server) — this opts the worker out of automatic dispatch so it only
 // joins rooms explicitly dispatched to it, carrying the session metadata below.
 const AGENT_NAME = 'interview-agent'
+
+// @livekit/agents registers a local audio end-of-turn model *at the Worker
+// level* the moment its native binding is requireable — independent of the
+// per-job AgentSession.turnHandling choice below. On Render's free tier the
+// native binary loads fine (a matching platform build ships as an optional
+// dep) but the child process it spawns can never come up under 0.1 CPU /
+// 512MB, so the SDK's own health check reports "inference process not
+// running" forever. There's no public option to opt the Worker out of this,
+// so when DISABLE_LOCAL_INFERENCE=1 we make the SDK's internal
+// `require('@livekit/local-inference')` fail on purpose — the SDK already
+// catches that and degrades gracefully (a warning, EOT registration skipped).
+if (process.env.DISABLE_LOCAL_INFERENCE === '1') {
+  type ModuleLoad = (request: string, ...rest: unknown[]) => unknown
+  const moduleInternals = Module as unknown as { _load: ModuleLoad }
+  const originalLoad = moduleInternals._load
+  moduleInternals._load = (request, ...rest) => {
+    if (request === '@livekit/local-inference') {
+      throw new Error('@livekit/local-inference blocked (DISABLE_LOCAL_INFERENCE=1)')
+    }
+    return originalLoad.call(Module, request, ...rest)
+  }
+}
 
 interface JobMetadata {
   interviewSessionId: string
