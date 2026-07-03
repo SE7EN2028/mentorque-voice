@@ -21,6 +21,15 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     return
   }
 
+  // express.json() rejects unparseable request bodies by calling next() with
+  // a SyntaxError carrying a body-parser-specific `body` property — a client
+  // mistake, not a server fault, so it belongs in the 4xx branch above, not
+  // logged-and-hidden as a 500.
+  if (err instanceof SyntaxError && 'body' in err) {
+    res.status(400).json({ error: 'Malformed JSON in request body' })
+    return
+  }
+
   logger.error('unhandled error', { err })
   res.status(500).json({ error: 'Internal server error' })
 }

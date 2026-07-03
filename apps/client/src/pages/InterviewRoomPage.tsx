@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -8,7 +8,7 @@ import {
 } from '@livekit/components-react'
 import { ConnectionState } from 'livekit-client'
 import { useNavigate, useParams } from 'react-router-dom'
-import type { InterviewType, VoiceUpdatePayload } from '@mentorque/shared'
+import type { InterviewType, VoiceControlPayload, VoiceUpdatePayload } from '@mentorque/shared'
 import { VOICE_CONTROL_TOPIC, VOICE_UPDATES_TOPIC } from '@mentorque/shared'
 import { ApiError } from '../api/client'
 import { sessionsApi } from '../api/sessions'
@@ -125,6 +125,8 @@ function InterviewRoomContent({
   const [isEnding, setIsEnding] = useState(false)
   const [dialog, setDialog] = useState<'end' | 'leave' | null>(null)
 
+  const agentHeardFromRef = useRef(false)
+
   const handleUpdate = useCallback(
     (raw: Uint8Array) => {
       let payload: VoiceUpdatePayload
@@ -133,6 +135,8 @@ function InterviewRoomContent({
       } catch {
         return
       }
+
+      agentHeardFromRef.current = true
 
       if (payload.type === 'agent_state') {
         setOrbState(payload.state)
@@ -154,6 +158,38 @@ function InterviewRoomContent({
   )
 
   useDataChannel(VOICE_UPDATES_TOPIC, (message) => handleUpdate(message.payload))
+
+  // Tells the agent-worker this browser's data-channel listener is actually
+  // subscribed now, so it knows it's safe to start speaking — see
+  // VoiceControlPayload's client_ready doc comment for the race this closes.
+  // A single fire-and-forget send isn't enough: the agent-worker takes a few
+  // seconds to spin up and join the room (spawning its job process, running
+  // model init, calling session.start()), so the first ping almost always
+  // gets sent — and dropped — before the agent's own control-topic handler
+  // even exists. Resending on an interval until the agent actually speaks
+  // guarantees at least one ping lands after that handler is registered.
+  useEffect(() => {
+    // sendText can reject (e.g. the data transport isn't up yet right after
+    // joining) — that's expected on early attempts and the next retry tick
+    // covers it, so failures here are silently ignored rather than logged.
+    const send = () =>
+      void localParticipant
+        .sendText(JSON.stringify({ type: 'client_ready' } satisfies VoiceControlPayload), {
+          topic: VOICE_CONTROL_TOPIC,
+        })
+        .catch(() => {})
+
+    send()
+    const intervalId = setInterval(() => {
+      if (agentHeardFromRef.current) {
+        clearInterval(intervalId)
+        return
+      }
+      send()
+    }, 500)
+
+    return () => clearInterval(intervalId)
+  }, [localParticipant])
 
   useEffect(() => {
     localParticipant.setMicrophoneEnabled(true).catch(() => {

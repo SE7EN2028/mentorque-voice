@@ -18,6 +18,12 @@ export function useFeedbackReport(sessionId: string): FeedbackReportState {
   const [state, setState] = useState<FeedbackReportState>({ status: 'loading' })
 
   useEffect(() => {
+    // Callers pass '' for a session that isn't COMPLETED yet (no report to
+    // fetch) rather than conditionally calling this hook, which would
+    // violate the rules of hooks — skip the request entirely instead of
+    // hitting the API with a blank id.
+    if (!sessionId) return
+
     let cancelled = false
     let timeoutId: ReturnType<typeof setTimeout>
 

@@ -4,10 +4,10 @@ import type { tts } from '@livekit/agents'
 
 /**
  * Named abstraction over "which text-to-speech engine LiveKit uses" —
- * default is Google for development (generous usage before any bill),
- * swappable to Cartesia (lower latency, more natural) via one env var for
- * a recorded demo. Neither VoiceAgent nor the conversation engine cares
- * which is active.
+ * default is Cartesia (lower latency, more natural, and not gated by
+ * Gemini's free-tier TTS rate limit) for both development and demos,
+ * swappable to Google via one env var. Neither VoiceAgent nor the
+ * conversation engine cares which is active.
  *
  * Note: the Node.js Agents SDK has no classic Google Cloud Text-to-Speech
  * export (that REST API is Python-only in LiveKit's plugin catalog) — the
@@ -56,7 +56,7 @@ let cachedProvider: TextToSpeechProvider | undefined
 
 export function getTextToSpeechProvider(): TextToSpeechProvider {
   if (!cachedProvider) {
-    const providerName = process.env.TTS_PROVIDER ?? 'google'
+    const providerName = process.env.TTS_PROVIDER ?? 'cartesia'
     switch (providerName) {
       case 'google':
         cachedProvider = new GoogleTextToSpeechProvider()

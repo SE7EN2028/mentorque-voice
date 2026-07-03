@@ -40,9 +40,15 @@ export interface VoiceAgentStatePayload {
 export type VoiceUpdatePayload =
   VoiceTranscriptPayload | VoiceProgressPayload | VoiceAgentStatePayload
 
-export interface VoiceControlPayload {
-  type: 'end_session'
-}
+/** 'client_ready' fixes a real startup race: the agent used to start
+ * speaking the moment it joined the room, which could easily beat the
+ * candidate's browser through its own token fetch + WebRTC negotiation +
+ * data-channel subscription — losing the opening line's transcript/orb
+ * state (the audio itself still played, since that's a separate media
+ * track, but the on-screen state silently never caught up). The client
+ * sends this the instant its VOICE_UPDATES_TOPIC listener is attached; the
+ * agent waits for it (with a timeout fallback) before speaking. */
+export type VoiceControlPayload = { type: 'end_session' } | { type: 'client_ready' }
 
 export const VOICE_UPDATES_TOPIC = 'interview-updates'
 export const VOICE_CONTROL_TOPIC = 'control'

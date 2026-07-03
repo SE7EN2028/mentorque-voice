@@ -27,7 +27,7 @@ deterministic-and-LLM feedback report immediately after.
 | Voice worker    | Node.js + LiveKit Agents (Node SDK)                |
 | Conversation AI | Google Gemini 2.5 Flash (`@google/genai`)          |
 | Speech-to-text  | Deepgram                                           |
-| Text-to-speech  | Google Cloud TTS (default) or Cartesia             |
+| Text-to-speech  | Cartesia (default) or Google Gemini TTS            |
 | Database        | PostgreSQL (Neon) + Prisma                         |
 | Auth            | JWT in an httpOnly cookie, bcrypt password hashing |
 | Validation      | Zod schemas shared between client and server       |
@@ -60,8 +60,8 @@ packages/
 - A [LiveKit Cloud](https://livekit.io) project (URL + API key/secret) — needed for live voice
   interviews
 - A [Deepgram](https://deepgram.com) API key — speech-to-text for the voice agent
-- Either a Google Cloud service account with Text-to-Speech enabled (default), or a
-  [Cartesia](https://cartesia.ai) API key — text-to-speech for the voice agent
+- A [Cartesia](https://cartesia.ai) API key (default), or a Google AI Studio API key with
+  Gemini TTS access — text-to-speech for the voice agent
 
 The web app (signup/login/dashboard/session history/reports) works without LiveKit/Deepgram/TTS
 credentials configured — only starting an actual live voice interview needs those.
@@ -111,8 +111,11 @@ npm run dev:voice     # runs it, connects to LiveKit and waits for a room to joi
 
 Fill in `LIVEKIT_URL`/`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` in **both** `apps/server/.env`
 (issues the join token) and `apps/agent-worker/.env` (joins the room), plus
-`GEMINI_API_KEY`, `DEEPGRAM_API_KEY`, and either Google Cloud TTS credentials or
-`CARTESIA_API_KEY` in `apps/agent-worker/.env`.
+`GEMINI_API_KEY`, `DEEPGRAM_API_KEY`, and `CARTESIA_API_KEY` in `apps/agent-worker/.env`.
+
+TTS provider is picked by `TTS_PROVIDER` in `apps/agent-worker/.env` — `cartesia` (default,
+used for both development and demos) or `google` (Gemini TTS, needs `GOOGLE_API_KEY`; note
+Gemini's free tier caps TTS at 3 requests/minute, easily exhausted mid-interview).
 
 ## Scripts
 

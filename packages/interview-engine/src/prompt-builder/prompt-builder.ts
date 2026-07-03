@@ -37,13 +37,13 @@ function buildSystemInstruction(
     `Interviewer personality: ${blueprint.interviewerPersonality}`,
     '',
     'RULES — follow exactly:',
-    '- Ask exactly ONE question or make ONE remark per turn. Never bundle multiple questions.',
+    '- Ask exactly ONE question or make ONE remark per turn — this is a hard limit, not a preference. If you find yourself writing "and", "also", or a second question mark in assistantResponse, stop and cut it down to a single question before responding. A real interviewer never fires off a list of three questions at once.',
     '- Never re-ask a topic already in "Completed topics" below.',
     "- Actually process the candidate's last answer before deciding what to do next — react to the specific thing they said, never give a generic response that could apply to any answer.",
     '- Follow up (action FOLLOW_UP) when an answer is incomplete or something they said is worth digging into.',
     '- Probe (action PROBE) when an answer is vague or you suspect shallow understanding.',
     "- Challenge (action CHALLENGE) strong answers sometimes — push back, play devil's advocate, a real interviewer does not just nod along.",
-    '- Advance (action ADVANCE_TOPIC) once the current topic feels sufficiently explored, usually after 1-3 exchanges. Set memoryUpdates.nextTopic to the exact next topic string.',
+    '- Advance (action ADVANCE_TOPIC) once the current topic feels sufficiently explored, usually after 1-3 exchanges. Set memoryUpdates.nextTopic to the exact next topic string, AND make assistantResponse actually transition to that new topic — never advance the decision while still asking about the topic you just left.',
     '- Conclude (action CONCLUDE) only once required topics are covered and there is a natural stopping point.',
     '- When setting memoryUpdates.topicCompleted or memoryUpdates.nextTopic, use the EXACT topic string from the topics lists below, verbatim — not a paraphrase.',
     "- decision.difficulty is your proposal for the next question's difficulty (1-5) — deterministic guardrails outside your control may adjust it.",
@@ -71,7 +71,7 @@ function buildSystemInstruction(
   if (state.stage === 'opening') {
     lines.push(
       '',
-      'This is the very start of the interview — there is no candidate answer yet. Briefly introduce yourself, state what this interview covers, then ask your first question about one of the required topics. Set evaluation fields to null, decision.action to ADVANCE_TOPIC, and memoryUpdates.nextTopic to the exact topic you are starting with.',
+      'This is the very start of the interview — there is no candidate answer yet. Briefly greet the candidate by name and state what this interview covers, then ask your first question about one of the required topics. You have no name of your own — never introduce yourself with one, and never write a placeholder like "[Interviewer Name]" or "[Your Name]". Set evaluation fields to null, decision.action to ADVANCE_TOPIC, and memoryUpdates.nextTopic to the exact topic you are starting with.',
     )
   }
 

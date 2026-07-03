@@ -88,6 +88,60 @@ export default defineAgent({
       logger.warn('failed to record voice metadata', { error, interviewSessionId })
     }
 
+    // The client's "End interview" button and its post-connect "ready" ping
+    // both ride this one control-topic handler — register it before doing
+    // anything that speaks, so a client_ready arriving early is never missed.
+    let resolveClientReady: (() => void) | undefined
+    let clientReadySignalReceived = false
+    const clientReady = new Promise<void>((resolve) => {
+      resolveClientReady = resolve
+    })
+
+    ctx.room.registerTextStreamHandler(VOICE_CONTROL_TOPIC, async (reader) => {
+      const raw = await reader.readAll()
+
+      let payload: VoiceControlPayload
+      try {
+        payload = JSON.parse(raw) as VoiceControlPayload
+      } catch {
+        logger.warn('received malformed control payload', { raw, interviewSessionId })
+        return
+      }
+
+      if (payload.type === 'client_ready') {
+        clientReadySignalReceived = true
+        resolveClientReady?.()
+      } else if (payload.type === 'end_session') {
+        try {
+          const result = await conversationAdapter.end(interviewSessionId, userId)
+          await voiceSession.speak(result.assistantMessage)
+        } catch (error) {
+          logger.error('failed to end interview gracefully', { error, interviewSessionId })
+        } finally {
+          await voiceSession.end()
+        }
+      }
+    })
+
+    // Don't start speaking until the candidate's browser has actually
+    // finished connecting and subscribing to the updates topic — otherwise
+    // the opening line's transcript/orb-state update publishes into a room
+    // nobody is listening to yet (the TTS audio track would still play, but
+    // the on-screen transcript and orb would silently miss the whole first
+    // turn). A generous timeout keeps this from hanging forever if a client
+    // never sends the signal (e.g. a non-browser test harness).
+    const CLIENT_READY_TIMEOUT_MS = 8000
+    const clientReadyWaitStarted = Date.now()
+    await Promise.race([
+      clientReady,
+      new Promise<void>((resolve) => setTimeout(resolve, CLIENT_READY_TIMEOUT_MS)),
+    ])
+    logger.info('client-ready wait finished', {
+      interviewSessionId,
+      clientReadySignalReceived,
+      waitedMs: Date.now() - clientReadyWaitStarted,
+    })
+
     try {
       // Checking status (rather than always calling start()) is what makes
       // a reconnect safe: a candidate rejoining an already-ACTIVE session
@@ -113,38 +167,32 @@ export default defineAgent({
       }
     } catch (error) {
       logger.error('failed to start interview', { error, interviewSessionId })
-      await voiceSession.speak(
-        "Sorry, I'm having trouble starting this interview. Please try again shortly.",
-      )
-      await voiceSession.end()
+      // The session may already be torn down by the time we get here — e.g.
+      // a participant disconnect (a quick navigate-away-and-back, a page
+      // refresh) fires LiveKit's own closeOnDisconnect teardown while this
+      // handler is mid-flight. Calling session.say()/shutdown() again in
+      // that state throws "AgentSession is not running", and letting that
+      // escape here would crash the whole job instead of just ending it.
+      try {
+        await voiceSession.speak(
+          "Sorry, I'm having trouble starting this interview. Please try again shortly.",
+        )
+      } catch (speakError) {
+        logger.warn('could not deliver failure message — session already closed', {
+          speakError,
+          interviewSessionId,
+        })
+      }
+      try {
+        await voiceSession.end()
+      } catch (endError) {
+        logger.warn('session end failed — likely already shut down', {
+          endError,
+          interviewSessionId,
+        })
+      }
       return
     }
-
-    // The client's "End interview" button publishes this over the data
-    // channel — no REST round-trip needed for a signal that's already
-    // inside the same room.
-    ctx.room.registerTextStreamHandler(VOICE_CONTROL_TOPIC, async (reader) => {
-      const raw = await reader.readAll()
-
-      let payload: VoiceControlPayload
-      try {
-        payload = JSON.parse(raw) as VoiceControlPayload
-      } catch {
-        logger.warn('received malformed control payload', { raw, interviewSessionId })
-        return
-      }
-
-      if (payload.type === 'end_session') {
-        try {
-          const result = await conversationAdapter.end(interviewSessionId, userId)
-          await voiceSession.speak(result.assistantMessage)
-        } catch (error) {
-          logger.error('failed to end interview gracefully', { error, interviewSessionId })
-        } finally {
-          await voiceSession.end()
-        }
-      }
-    })
 
     ctx.room.on(RoomEvent.ParticipantDisconnected, () => {
       // State is persisted after every turn already (see
