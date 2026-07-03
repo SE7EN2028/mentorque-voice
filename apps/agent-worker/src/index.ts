@@ -305,9 +305,12 @@ cli.runApp(
     agentName: AGENT_NAME,
     // Slow/constrained hosts need generous child-process boot time — the
     // default init timeout flaps forever at 0.1 CPU — and can't afford a
-    // pool of prewarmed job processes in 512MB.
+    // pool of prewarmed job processes in 512MB: parent + active job + a
+    // respawning idle process is three Node processes and an OOM kill
+    // mid-interview. WORKER_IDLE_PROCESSES=0 spawns job processes on
+    // demand instead (slower interview start, but it fits).
     initializeProcessTimeout: 120_000,
-    numIdleProcesses: 1,
+    numIdleProcesses: Number(process.env.WORKER_IDLE_PROCESSES ?? 1),
     // On PaaS hosts (Render/Railway) bind the SDK's built-in health-check
     // HTTP server to the platform-assigned port so this worker can deploy
     // as a plain web service. Locally PORT is unset and the SDK default is
