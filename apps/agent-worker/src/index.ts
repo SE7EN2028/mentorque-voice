@@ -288,4 +288,14 @@ export default defineAgent({
   },
 })
 
-cli.runApp(new ServerOptions({ agent: fileURLToPath(import.meta.url), agentName: AGENT_NAME }))
+cli.runApp(
+  new ServerOptions({
+    agent: fileURLToPath(import.meta.url),
+    agentName: AGENT_NAME,
+    // On PaaS hosts (Render/Railway) bind the SDK's built-in health-check
+    // HTTP server to the platform-assigned port so this worker can deploy
+    // as a plain web service. Locally PORT is unset and the SDK default is
+    // used.
+    ...(process.env.PORT ? { port: Number(process.env.PORT), host: '0.0.0.0' } : {}),
+  }),
+)
